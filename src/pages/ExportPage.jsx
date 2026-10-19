@@ -1,10 +1,10 @@
 // Export & backup: PDF, CSV, JSON, photo ZIP; cloud backups (manual + weekly auto); restore from JSON.
 import { useState } from 'react';
-import { CloudUpload, FileJson, FileSpreadsheet, FileText, FolderArchive, RotateCcw, Upload } from 'lucide-react';
+import { CloudUpload, Download, FileJson, FileSpreadsheet, FileText, FolderArchive, Upload } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { buildCsv, buildJsonBackup, buildPdf, buildPhotoZip, parseBackup } from '../lib/export.js';
 import { downloadBlob, errMsg, fmtDate, sortBy, timeAgo } from '../lib/utils.js';
-import { ConfirmDialog, Modal, PageHeader, Segmented, Spinner } from '../components/ui.jsx';
+import { ConfirmDialog, Modal, PageHeader, SegmentedControl, Spinner } from '../components/ui.jsx';
 
 const stamp = () => new Date().toISOString().slice(0, 10);
 
@@ -45,56 +45,64 @@ export default function ExportPage() {
   return (
     <div>
       <PageHeader title="Export & backup" back />
-      <div className="space-y-5 px-4 pb-8">
-        <section className="space-y-2">
-          <h2 className="section-title">Export</h2>
-          {exports.map(({ key, icon: Icon, title, desc, run }) => (
-            <button key={key} className="card flex w-full items-center gap-3 p-4 text-left transition active:scale-[.99]" disabled={!!busy} onClick={() => go(key, run)}>
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/50"><Icon size={22} /></span>
-              <span className="flex-1"><span className="block font-bold">{title}</span><span className="muted text-xs">{desc}</span></span>
-              {busy === key && <span className="flex items-center gap-2 text-xs"><Spinner className="h-4 w-4" />{progress}</span>}
-            </button>
-          ))}
-          <div className="card space-y-3 p-4">
-            <div className="flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/50"><FolderArchive size={22} /></span>
-              <span className="flex-1"><span className="block font-bold">Photo album ZIP</span><span className="muted text-xs">Original photos in a folder per item</span></span>
+      <div className="space-y-7 px-5 pb-10">
+        <section>
+          <h2 className="section-title mb-2 px-1">Export</h2>
+          <ul className="list-group hairline">
+            {exports.map(({ key, icon: Icon, title, desc, run }) => (
+              <li key={key}>
+                <button className="list-row" disabled={!!busy} onClick={() => go(key, run)}>
+                  <Icon size={19} strokeWidth={1.6} className="text-ink-500" />
+                  <span className="flex-1"><span className="block text-[15px]">{title}</span><span className="muted text-[13px]">{desc}</span></span>
+                  {busy === key ? <span className="muted flex items-center gap-2 text-[13px]"><Spinner className="h-4 w-4" />{progress}</span> : <Download size={16} strokeWidth={1.6} className="text-ink-500" />}
+                </button>
+              </li>
+            ))}
+            <li className="space-y-3 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <FolderArchive size={19} strokeWidth={1.6} className="text-ink-500" />
+                <span className="flex-1"><span className="block text-[15px]">Photo album ZIP</span><span className="muted text-[13px]">Original photos, a folder per dream</span></span>
+              </div>
+              <div className="flex gap-2">
+                <select className="input py-2 text-[14px]" value={zipScope} onChange={(e) => setZipScope(e.target.value)} aria-label="Which photos">
+                  <option value="all">Everything ({data.item_photos.length} photos)</option>
+                  {items.filter((i) => data.item_photos.some((p) => p.item_id === i.id)).map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
+                </select>
+                <button className="btn-soft min-h-[42px] shrink-0 px-4" disabled={!!busy} onClick={() => go('zip', async () => {
+                  const scoped = zipScope === 'all' ? items : items.filter((i) => i.id === zipScope);
+                  const blob = await buildPhotoZip({ items: scoped, photos: data.item_photos, journal: zipScope === 'all' ? data.journal_entries.filter((j) => !j.item_id) : [], download, onProgress: (n, t) => setProgress(`${n}/${t}`) });
+                  downloadBlob(blob, `bucket-list-photos-${stamp()}.zip`);
+                })}>{busy === 'zip' ? <><Spinner className="h-4 w-4" /> {progress}</> : 'Download ZIP'}</button>
+              </div>
+            </li>
+          </ul>
+          <p className="muted mt-2 px-1 text-[13px]">Secret Fantasy is never included in exports or backups.</p>
+        </section>
+
+        <section>
+          <h2 className="section-title mb-2 px-1">Cloud backup</h2>
+          <div className="list-group hairline">
+            <div className="px-4 py-4">
+              <p className="text-[14px]">A full snapshot is saved {app.mode === 'supabase' ? 'to your private storage' : 'in this browser'} every week.</p>
+              <p className="muted mt-0.5 text-[13px]">Last backup: {workspace.last_backup_at ? `${fmtDate(workspace.last_backup_at)} (${timeAgo(workspace.last_backup_at)})` : 'never'}</p>
+              <button className="btn-dark mt-4 w-full" disabled={!!busy} onClick={() => go('backup', () => backupNow('manual'))}>{busy === 'backup' ? <Spinner className="h-4 w-4" /> : <CloudUpload size={17} strokeWidth={1.6} />} Back up now</button>
             </div>
-            <select className="input text-sm" value={zipScope} onChange={(e) => setZipScope(e.target.value)} aria-label="Which photos">
-              <option value="all">Whole list ({data.item_photos.length} photos)</option>
-              {items.filter((i) => data.item_photos.some((p) => p.item_id === i.id)).map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
-            </select>
-            <button className="btn-soft w-full" disabled={!!busy} onClick={() => go('zip', async () => {
-              const scoped = zipScope === 'all' ? items : items.filter((i) => i.id === zipScope);
-              const blob = await buildPhotoZip({ items: scoped, photos: data.item_photos, journal: zipScope === 'all' ? data.journal_entries.filter((j) => !j.item_id) : [], download, onProgress: (n, t) => setProgress(`${n}/${t}`) });
-              downloadBlob(blob, `bucket-list-photos-${stamp()}.zip`);
-            })}>{busy === 'zip' ? <><Spinner className="h-4 w-4" /> {progress}</> : 'Download ZIP'}</button>
+            {backups.slice(0, 8).map((b) => (
+              <div key={b.id} className="flex items-center gap-2 px-4 py-2.5">
+                <span className="flex-1 text-[14px]">{fmtDate(b.created_at, 'd MMM yyyy, HH:mm')} <span className="muted text-[12px]">· {b.kind} · {b.item_count} dreams · {Math.round((b.size_bytes || 0) / 1024)} KB</span></span>
+                <button className="btn-link text-[13px]" disabled={!!busy} onClick={() => go(`r-${b.id}`, async () => { const backup = await downloadBackup(b); if (backup) setRestore({ backup: parseBackup(JSON.stringify(backup)), mode: 'merge' }); })}>
+                  {busy === `r-${b.id}` ? <Spinner className="h-3 w-3" /> : 'Restore'}
+                </button>
+              </div>
+            ))}
           </div>
         </section>
 
-        <section className="card space-y-3 p-4">
-          <h2 className="section-title flex items-center gap-2"><CloudUpload size={18} /> Cloud backup</h2>
-          <p className="muted text-sm">A full JSON snapshot is saved {app.mode === 'supabase' ? 'to your private Supabase storage' : 'in this browser'} automatically every week. Last backup: <b>{workspace.last_backup_at ? `${fmtDate(workspace.last_backup_at)} (${timeAgo(workspace.last_backup_at)})` : 'never'}</b>.</p>
-          <button className="btn-primary w-full" disabled={!!busy} onClick={() => go('backup', () => backupNow('manual'))}>{busy === 'backup' ? <Spinner className="h-4 w-4" /> : <CloudUpload size={17} />} Back up now</button>
-          {backups.length > 0 && (
-            <ul className="divide-y divide-rose-100 text-sm dark:divide-white/5">
-              {backups.slice(0, 8).map((b) => (
-                <li key={b.id} className="flex items-center gap-2 py-2">
-                  <span className="flex-1">{fmtDate(b.created_at, 'd MMM yyyy, HH:mm')} <span className="muted text-xs">· {b.kind} · {b.item_count} items · {Math.round((b.size_bytes || 0) / 1024)} KB</span></span>
-                  <button className="btn-ghost px-2 py-1 text-xs" disabled={!!busy} onClick={() => go(`r-${b.id}`, async () => { const backup = await downloadBackup(b); if (backup) setRestore({ backup: parseBackup(JSON.stringify(backup)), mode: 'merge' }); })}>
-                    {busy === `r-${b.id}` ? <Spinner className="h-3 w-3" /> : <><RotateCcw size={13} /> Restore</>}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="card space-y-3 p-4">
-          <h2 className="section-title flex items-center gap-2"><Upload size={18} /> Restore from file</h2>
-          <p className="muted text-sm">Import a JSON backup exported from this app.</p>
-          <label className="btn-soft w-full cursor-pointer">
-            <Upload size={16} /> Choose backup file
+        <section>
+          <h2 className="section-title mb-2 px-1">Restore from file</h2>
+          <label className="list-group list-row cursor-pointer">
+            <Upload size={19} strokeWidth={1.6} className="text-ink-500" />
+            <span className="flex-1 text-[15px]">Choose a backup file</span>
             <input type="file" accept="application/json,.json" className="sr-only" onChange={async (e) => {
               const f = e.target.files[0]; e.target.value = '';
               if (!f) return;
@@ -122,11 +130,11 @@ function RestoreDialog({ restore, setRestore, onConfirm }) {
     <Modal open onClose={() => setRestore(null)} title="Restore backup"
       footer={<>
         <button className="btn-ghost flex-1" onClick={() => setRestore(null)}>Cancel</button>
-        <button className="btn-primary flex-1" onClick={async () => { if (mode === 'replace') return setRestore({ ...restore, mode: 'replace-confirm' }); await onConfirm(); setRestore(null); }}>Restore</button>
+        <button className="btn-dark flex-1" onClick={async () => { if (mode === 'replace') return setRestore({ ...restore, mode: 'replace-confirm' }); await onConfirm(); setRestore(null); }}>Restore</button>
       </>}>
-      <p className="text-sm">Backup from <b>{fmtDate(backup.exported_at, 'd MMM yyyy, HH:mm')}</b> — {n} items, {backup.data.item_photos?.length ?? 0} photo records, {backup.data.important_dates?.length ?? 0} dates.</p>
-      <div className="mt-4"><Segmented value={mode} onChange={(m) => setRestore({ ...restore, mode: m })} options={[{ value: 'merge', label: 'Add alongside current' }, { value: 'replace', label: 'Replace everything' }]} /></div>
-      <p className="muted mt-3 text-xs">Photos are restored by reference: they show up if the original files are still in your storage. Use the Photo ZIP export to keep offline copies.</p>
+      <p className="text-[14px]">Backup from <b className="font-medium">{fmtDate(backup.exported_at, 'd MMM yyyy, HH:mm')}</b> — {n} items, {backup.data.item_photos?.length ?? 0} photo records, {backup.data.important_dates?.length ?? 0} dates.</p>
+      <div className="mt-4"><SegmentedControl value={mode} onChange={(m) => setRestore({ ...restore, mode: m })} options={[{ value: 'merge', label: 'Add to current' }, { value: 'replace', label: 'Replace all' }]} /></div>
+      <p className="muted mt-3 text-[13px]">Photos are restored by reference: they show up if the original files are still in your storage. Use the Photo ZIP export to keep offline copies.</p>
     </Modal>
   );
 }

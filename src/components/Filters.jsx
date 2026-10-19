@@ -1,5 +1,5 @@
 // Filter controls shared by the List view and "Surprise me".
-import { CATEGORIES, CATEGORY_META, PRIORITIES, STATUSES } from '../lib/constants.js';
+import { CATEGORIES, PRIORITIES, STATUSES } from '../lib/constants.js';
 import { EMPTY_FILTERS } from '../lib/stats.js';
 import { useApp } from '../store/AppStore.jsx';
 import { Field, Modal, Segmented, Toggle } from './ui.jsx';
@@ -22,7 +22,7 @@ export function FilterFields({ value: f, onChange, showStatus = true }) {
         <div className="flex flex-wrap gap-1.5">
           {CATEGORIES.map((c) => (
             <button key={c} type="button" className="chip-toggle" aria-pressed={f.categories.includes(c)} onClick={() => set({ categories: toggleIn(f.categories, c) })}>
-              {CATEGORY_META[c].emoji} {c}
+              {c}
             </button>
           ))}
         </div>
@@ -56,10 +56,10 @@ export function FilterFields({ value: f, onChange, showStatus = true }) {
           onChange={(e) => set({ maxCost: e.target.value })} />
       </Field>
       <div>
-        <span className="label">Mutual vote score · at least {f.minScore}</span>
-        <input type="range" min="0" max="100" step="10" value={f.minScore} onChange={(e) => set({ minScore: Number(e.target.value) })} className="w-full accent-rose-600" aria-label="Minimum mutual score" />
+        <span className="label">Mutual score — at least {f.minScore}</span>
+        <input type="range" min="0" max="100" step="10" value={f.minScore} onChange={(e) => set({ minScore: Number(e.target.value) })} className="w-full accent-rose-500" aria-label="Minimum mutual score" />
       </div>
-      <Toggle checked={f.mutualOnly} onChange={(mutualOnly) => set({ mutualOnly })} label="We both voted 4★+" description="Only items with the “We both want this” badge" />
+      <Toggle checked={f.mutualOnly} onChange={(mutualOnly) => set({ mutualOnly })} label="Both love it" description="Only dreams you both rated 4 stars or more" />
       {showStatus && <Toggle checked={f.hideCompleted} onChange={(hideCompleted) => set({ hideCompleted })} label="Hide completed" />}
     </div>
   );
@@ -70,7 +70,7 @@ export function FilterSheet({ open, onClose, value, onChange }) {
     <Modal open={open} onClose={onClose} title="Filters"
       footer={<>
         <button className="btn-ghost flex-1" onClick={() => onChange({ ...EMPTY_FILTERS, q: value.q })}>Clear all</button>
-        <button className="btn-primary flex-1" onClick={onClose}>Show results</button>
+        <button className="btn-dark flex-1" onClick={onClose}>Show results</button>
       </>}>
       <FilterFields value={value} onChange={onChange} />
     </Modal>

@@ -19,10 +19,17 @@ import TrashPage from './pages/TrashPage.jsx';
 import GiftsPage from './pages/GiftsPage.jsx';
 import ExportPage from './pages/ExportPage.jsx';
 import SharePage from './pages/SharePage.jsx';
+import MorePage from './pages/MorePage.jsx';
+import SurprisePage from './pages/SurprisePage.jsx';
 
-// Calendar (dnd-kit) and Map (Leaflet) are heavier, so they load on demand.
+// Heavier or private areas load on demand.
 const CalendarPage = lazy(() => import('./pages/CalendarPage.jsx'));
 const MapPage = lazy(() => import('./pages/MapPage.jsx'));
+// Secret Fantasy is its own chunk with its own data provider and lock — nothing loads until opened.
+const FantasyLayout = lazy(() => import('./fantasy/FantasyLayout.jsx'));
+const FantasyListPage = lazy(() => import('./fantasy/FantasyListPage.jsx'));
+const FantasyDetailPage = lazy(() => import('./fantasy/FantasyDetailPage.jsx'));
+const FantasyEditPage = lazy(() => import('./fantasy/FantasyEditPage.jsx'));
 
 export default function App() {
   const { user, workspace, loading } = useApp();
@@ -42,7 +49,7 @@ export default function App() {
   if (!workspace) return (<><LinkPage /><Toasts /></>);
 
   return (
-    <div className="mx-auto min-h-dvh max-w-2xl pb-24">
+    <div className="mx-auto min-h-dvh max-w-2xl pb-28">
       <Suspense fallback={<FullScreenLoader />}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
@@ -52,13 +59,21 @@ export default function App() {
           <Route path="/item/:id" element={<ItemDetailPage />} />
           <Route path="/item/:id/edit" element={<ItemEditPage />} />
           <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/timeline" element={<TimelinePage />} />
           <Route path="/memories" element={<MemoriesPage />} />
+          <Route path="/more" element={<MorePage />} />
+          <Route path="/timeline" element={<TimelinePage />} />
+          <Route path="/surprise" element={<SurprisePage />} />
           <Route path="/dates" element={<DatesPage />} />
           <Route path="/gifts" element={<GiftsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/trash" element={<TrashPage />} />
           <Route path="/export" element={<ExportPage />} />
+          <Route path="/fantasy" element={<FantasyLayout />}>
+            <Route index element={<FantasyListPage />} />
+            <Route path="new" element={<FantasyEditPage />} />
+            <Route path=":id" element={<FantasyDetailPage />} />
+            <Route path=":id/edit" element={<FantasyEditPage />} />
+          </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
@@ -70,11 +85,8 @@ export default function App() {
 
 function FullScreenLoader() {
   return (
-    <div className="grid min-h-dvh place-items-center">
-      <div className="flex flex-col items-center gap-3 text-rose-600">
-        <span className="animate-heartbeat text-4xl" aria-hidden>💗</span>
-        <Spinner />
-      </div>
+    <div className="grid min-h-dvh place-items-center text-rose-500">
+      <Spinner />
     </div>
   );
 }

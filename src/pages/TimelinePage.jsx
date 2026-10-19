@@ -1,11 +1,11 @@
 // Memory journal / timeline: completed items, manual entries and milestone dates, newest first.
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { yearInReview } from '../lib/stats.js';
 import { validateJournal, toNum } from '../lib/validation.js';
-import { CATEGORIES, CATEGORY_META, DATE_KINDS, IMPORTANT_DATE_COLOR } from '../lib/constants.js';
+import { CATEGORIES, CATEGORY_META, IMPORTANT_DATE_COLOR } from '../lib/constants.js';
 import { cn, fmtDate, fmtMoney, todayISO } from '../lib/utils.js';
 import { ConfirmDialog, EmptyState, Field, Modal, PageHeader, Segmented, Spinner, Stars, StoredImage } from '../components/ui.jsx';
 import PhotoAlbum, { Lightbox } from '../components/PhotoAlbum.jsx';
@@ -30,7 +30,7 @@ export default function TimelinePage() {
       });
     for (const d of data.important_dates) {
       if (d.date <= todayISO() && ['together_since', 'first_date', 'anniversary'].includes(d.kind))
-        out.push({ id: `date-${d.id}`, kind: 'milestone', title: d.title, entry_date: d.date, category: null, emoji: DATE_KINDS[d.kind]?.emoji, photoPath: d.photo_path, person: 'both', photos: [] });
+        out.push({ id: `date-${d.id}`, kind: 'milestone', title: d.title, entry_date: d.date, category: null, photoPath: d.photo_path, person: 'both', photos: [] });
     }
     return out.sort((a, b) => b.entry_date.localeCompare(a.entry_date));
   }, [data, items]);
@@ -47,37 +47,37 @@ export default function TimelinePage() {
 
   return (
     <div>
-      <PageHeader title="Our timeline" subtitle="Every chapter, in order" actions={<button className="btn-primary px-3" onClick={() => setEditing('new')}><Plus size={17} /> Entry</button>} />
-      <div className="space-y-4 px-4 pb-6">
+      <PageHeader title="Timeline" subtitle="Our story, in order" back actions={<button className="icon-btn" onClick={() => setEditing('new')} aria-label="Write a memory"><Plus size={22} strokeWidth={1.6} /></button>} />
+      <div className="space-y-6 px-5 pb-10">
         {/* Year in review */}
-        <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-rose-600 to-rose-800 p-5 text-white shadow-soft">
-          <p className="text-xs font-bold uppercase tracking-widest opacity-80">Year in review</p>
-          <h2 className="text-3xl font-bold">{yir.year}</h2>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[['🎉', yir.completed, 'dreams completed'], ['📸', yir.photos, 'photos added'], ['📍', yir.places, 'places visited'], ['💰', fmtMoney(yir.spent, workspace.currency) || '0', 'spent on memories']].map(([e, v, l]) => (
-              <div key={l} className="rounded-2xl bg-white/10 p-3"><div className="text-lg">{e}</div><div className="truncate font-display text-2xl font-bold">{v}</div><div className="text-xs opacity-80">{l}</div></div>
+        <section className="list-group px-5 py-5">
+          <p className="section-title">Year in review</p>
+          <h2 className="title-serif mt-1 text-[36px] leading-none">{yir.year}</h2>
+          <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+            {[[yir.completed, 'Dreams completed'], [yir.photos, 'Photos added'], [yir.places, 'Places visited'], [fmtMoney(yir.spent, workspace.currency) || '0', 'Spent on memories']].map(([v, l]) => (
+              <div key={l}><dd className="title-serif truncate text-[26px] leading-none">{v}</dd><dt className="muted mt-1 text-[13px]">{l}</dt></div>
             ))}
-          </div>
-          {(yir.topCategory || yir.avgRating) && (
-            <p className="mt-3 text-sm opacity-90">
-              {yir.topCategory && <>Your favourite kind of adventure: <b>{CATEGORY_META[yir.topCategory]?.emoji} {yir.topCategory}</b>. </>}
-              {yir.avgRating && <>Average “would do again”: <b>{yir.avgRating.toFixed(1)}★</b>.</>}
-              {yir.journalEntries ? <> Plus {yir.journalEntries} journal entr{yir.journalEntries === 1 ? 'y' : 'ies'}.</> : null}
+          </dl>
+          {(yir.topCategory || yir.avgRating || yir.journalEntries > 0) && (
+            <p className="muted mt-4 border-t border-line pt-3 text-[13px] dark:border-line-dark">
+              {yir.topCategory && <>Favourite kind of adventure: <span className="text-ink-800 dark:text-cream-100">{yir.topCategory}</span>. </>}
+              {yir.avgRating && <>Would do again: <span className="text-ink-800 dark:text-cream-100">{yir.avgRating.toFixed(1)} of 5</span>. </>}
+              {yir.journalEntries ? <>{yir.journalEntries} journal entr{yir.journalEntries === 1 ? 'y' : 'ies'}.</> : null}
             </p>
           )}
         </section>
 
         {/* Filters */}
-        <div className="space-y-2">
-          <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
+        <div className="space-y-3">
+          <div className="no-scrollbar -mx-5 flex gap-1.5 overflow-x-auto px-5">
             {['all', ...years].map((y) => <button key={y} className="chip-toggle shrink-0" aria-pressed={year === y} onClick={() => setYear(y)}>{y === 'all' ? 'All years' : y}</button>)}
           </div>
-          <div className="flex gap-2">
-            <select className="input py-2 text-sm" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
+          <div className="grid grid-cols-2 gap-2">
+            <select className="input py-2 text-[14px]" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
               <option value="all">All categories</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}
+              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-            <select className="input py-2 text-sm" value={person} onChange={(e) => setPerson(e.target.value)} aria-label="Person">
+            <select className="input py-2 text-[14px]" value={person} onChange={(e) => setPerson(e.target.value)} aria-label="Person">
               <option value="any">Both of us</option>
               <option value="me">Me</option>
               {partner && <option value="partner">{partner.display_name}</option>}
@@ -86,12 +86,12 @@ export default function TimelinePage() {
         </div>
 
         {filtered.length === 0 ? (
-          <EmptyState emoji="📖" title="Your story starts here" body="Complete an item or write about a moment — like your first road trip."
-            action={<button className="btn-primary" onClick={() => setEditing('new')}><Plus size={17} /> Write a memory</button>} />
+          <EmptyState icon={BookOpen} title="Your story starts here" body="Complete a dream, or write about a moment — like your first road trip."
+            action={<button className="btn-dark" onClick={() => setEditing('new')}>Write a memory</button>} />
         ) : Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0])).map(([y, list]) => (
           <section key={y}>
-            <h2 className="sticky top-[68px] z-10 -mx-4 bg-cream-50/90 px-4 py-1 font-display text-2xl font-bold text-rose-600 backdrop-blur dark:bg-ink-950/90 dark:text-rose-400">{y}</h2>
-            <ol className="relative ml-3 border-l-2 border-rose-200 dark:border-rose-900">
+            <h2 className="title-serif mb-3 text-[28px]">{y}</h2>
+            <ol className="relative ml-1.5 border-l border-line dark:border-line-dark">
               {list.map((e) => <Entry key={e.id} e={e} onEdit={() => setEditing(e)} onPhoto={(k) => setViewer({ photos: e.photos, index: k })} />)}
             </ol>
           </section>
@@ -108,41 +108,37 @@ const photosFor = (photos, j) => photos.filter((p) => (j.item_id ? p.item_id ===
 
 function Entry({ e, onEdit, onPhoto }) {
   const meta = e.category ? CATEGORY_META[e.category] : null;
-  const dot = e.kind === 'milestone' ? IMPORTANT_DATE_COLOR : meta?.color || '#e2555a';
+  const dot = e.kind === 'milestone' ? IMPORTANT_DATE_COLOR : meta?.color || '#C65D70';
+  const kindLabel = e.kind === 'milestone' ? 'Milestone' : e.kind === 'manual' ? 'Journal' : e.category;
   return (
-    <li className="mb-5 ml-5 animate-fade-up">
-      <span className="absolute -left-[9px] mt-1.5 h-4 w-4 rounded-full border-2 border-cream-50 dark:border-ink-950" style={{ background: dot }} />
-      <p className="muted text-xs font-bold uppercase tracking-wide">{fmtDate(e.entry_date, 'EEE d MMM yyyy')}</p>
-      <div className="card mt-1 overflow-hidden">
-        {e.photos.length > 0 && (
-          <div className={cn('grid gap-0.5', e.photos.length === 1 ? 'grid-cols-1' : e.photos.length === 2 ? 'grid-cols-2' : 'grid-cols-3')}>
-            {e.photos.slice(0, 3).map((p, k) => (
-              <button key={p.id} onClick={() => onPhoto(k)} className="relative aspect-[4/3] overflow-hidden">
-                <StoredImage path={p.storage_path} alt={p.caption || ''} className="h-full w-full" />
-                {k === 2 && e.photos.length > 3 && <span className="absolute inset-0 grid place-items-center bg-black/50 text-lg font-bold text-white">+{e.photos.length - 3}</span>}
-              </button>
-            ))}
-          </div>
-        )}
-        {e.photoPath && <StoredImage path={e.photoPath} className="h-36 w-full" />}
-        <div className="p-3">
-          <div className="flex items-start gap-2">
-            <span className="text-lg" aria-hidden>{e.kind === 'milestone' ? e.emoji : meta?.emoji || '📝'}</span>
-            <div className="min-w-0 flex-1">
-              {e.kind === 'item' ? <Link to={`/item/${e.item_id}`} className="font-sans text-[16px] font-bold hover:underline">{e.title}</Link> : <h3 className="font-sans text-[16px] font-bold">{e.title}</h3>}
-              {e.kind === 'milestone' && <p className="muted text-xs">Milestone 💞</p>}
-              {e.kind === 'manual' && <p className="muted text-xs">Journal entry</p>}
-            </div>
-            {e.kind === 'manual' && <button className="icon-btn h-8 w-8" onClick={onEdit} aria-label="Edit entry"><Pencil size={15} /></button>}
-          </div>
-          {e.note && <p className="mt-2 whitespace-pre-wrap font-display text-[15px] italic leading-relaxed">“{e.note}”</p>}
-          <div className="muted mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            {e.rating ? <Stars value={e.rating} readOnly size={13} /> : null}
-            {e.location_name && <span className="flex items-center gap-1"><MapPin size={12} />{e.location_name}</span>}
-            {e.tags?.map((t) => <span key={t}>#{t}</span>)}
-          </div>
+    <li className="relative mb-7 ml-5 animate-fade-up">
+      <span className="absolute -left-[24.5px] top-[7px] h-2 w-2 rounded-full ring-4 ring-cream-50 dark:ring-ink-950" style={{ background: dot }} />
+      <p className="muted text-[13px]">{fmtDate(e.entry_date, 'd MMMM')}{kindLabel ? ` · ${kindLabel}` : ''}</p>
+      <div className="mt-1 flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          {e.kind === 'item' ? <Link to={`/item/${e.item_id}`} className="text-[17px] font-medium hover:underline">{e.title}</Link> : <h3 className="text-[17px] font-medium">{e.title}</h3>}
         </div>
+        {e.kind === 'manual' && <button className="icon-btn -mt-1.5 h-9 w-9" onClick={onEdit} aria-label="Edit entry"><Pencil size={15} strokeWidth={1.6} /></button>}
       </div>
+      {e.note && <p className="title-serif mt-1.5 whitespace-pre-wrap text-[19px] italic leading-snug text-ink-700 dark:text-[#D4CFD5]">“{e.note}”</p>}
+      {e.photos.length > 0 && (
+        <div className={cn('mt-3 grid gap-1 overflow-hidden rounded-xl', e.photos.length === 1 ? 'grid-cols-1' : e.photos.length === 2 ? 'grid-cols-2' : 'grid-cols-3')}>
+          {e.photos.slice(0, 3).map((p, k) => (
+            <button key={p.id} onClick={() => onPhoto(k)} className="relative aspect-[4/3] overflow-hidden">
+              <StoredImage path={p.storage_path} alt={p.caption || ''} className="h-full w-full" />
+              {k === 2 && e.photos.length > 3 && <span className="absolute inset-0 grid place-items-center bg-black/40 text-[15px] font-medium text-white">+{e.photos.length - 3}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+      {e.photoPath && <StoredImage path={e.photoPath} className="mt-3 h-36 w-full rounded-xl" />}
+      {(e.rating || e.location_name || e.tags?.length > 0) && (
+        <div className="muted mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+          {e.rating ? <Stars value={e.rating} readOnly size={12} /> : null}
+          {e.location_name && <span className="flex items-center gap-1"><MapPin size={12} strokeWidth={1.6} />{e.location_name}</span>}
+          {e.tags?.map((t) => <span key={t}>{t}</span>)}
+        </div>
+      )}
     </li>
   );
 }
@@ -169,24 +165,24 @@ function JournalForm({ entry, onClose }) {
   }
 
   return (
-    <Modal open onClose={onClose} title={entry ? 'Edit memory' : 'New memory ✍️'} wide
+    <Modal open onClose={onClose} title={entry ? 'Edit memory' : 'New memory'} wide
       footer={<>
-        {entry && <button className="btn-ghost text-red-600" onClick={() => setConfirm(true)} aria-label="Delete entry"><Trash2 size={16} /></button>}
+        {entry && <button className="icon-btn h-11 w-11 text-rose-700 dark:text-rose-300" onClick={() => setConfirm(true)} aria-label="Delete entry"><Trash2 size={17} strokeWidth={1.6} /></button>}
         <button className="btn-ghost flex-1" onClick={onClose}>Cancel</button>
-        <button className="btn-primary flex-1" onClick={save} disabled={busy}>{busy ? <Spinner className="h-4 w-4" /> : 'Save'}</button>
+        <button className="btn-dark flex-1" onClick={save} disabled={busy}>{busy ? <Spinner className="h-4 w-4" /> : 'Save'}</button>
       </>}>
       <div className="space-y-4">
-        <Field label="Title *" error={errors.title}><input className="input" maxLength={140} placeholder="Our first road trip" value={v.title} onChange={(e) => set({ title: e.target.value })} /></Field>
-        <Field label="Date *" error={errors.entry_date}><input type="date" className="input" value={v.entry_date} onChange={(e) => set({ entry_date: e.target.value })} /></Field>
+        <Field label="Title" error={errors.title}><input className="input" maxLength={140} placeholder="Our first road trip" value={v.title} onChange={(e) => set({ title: e.target.value })} /></Field>
+        <Field label="Date" error={errors.entry_date}><input type="date" className="input" value={v.entry_date} onChange={(e) => set({ entry_date: e.target.value })} /></Field>
         <Field label="What happened"><textarea className="input min-h-[110px]" value={v.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
-        <div><span className="label">Rating</span><Stars value={v.rating} onChange={(rating) => set({ rating })} size={26} /></div>
-        <div><span className="label">Category</span><Segmented value={v.category || ''} onChange={(category) => set({ category })} options={[{ value: '', label: 'None' }, ...CATEGORIES.map((c) => ({ value: c, label: `${CATEGORY_META[c].emoji} ${c}` }))]} /></div>
+        <div><span className="label">Rating</span><Stars value={v.rating} onChange={(rating) => set({ rating })} size={22} /></div>
+        <div><span className="label">Category</span><Segmented value={v.category || ''} onChange={(category) => set({ category })} options={[{ value: '', label: 'None' }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]} /></div>
         <Field label="Location"><input className="input" value={v.location_name || ''} onChange={(e) => set({ location_name: e.target.value })} /></Field>
         <div><span className="label">Tags</span><TagInput value={v.tags || []} onChange={(tags) => set({ tags })} /></div>
         {entry ? <PhotoAlbum target={{ journal_entry_id: entry.id }} canSetCover={false} title="Photos" /> : (
           <Field label="Photos">
             <input type="file" accept="image/*" multiple className="input" onChange={(e) => setFiles([...e.target.files])} />
-            {files.length > 0 && <span className="muted text-xs">{files.length} selected</span>}
+            {files.length > 0 && <span className="muted text-[13px]">{files.length} selected</span>}
           </Field>
         )}
       </div>

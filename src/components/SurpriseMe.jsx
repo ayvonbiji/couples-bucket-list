@@ -1,24 +1,25 @@
-// "Surprise me": filter-aware random pick with a slot-machine reveal, reroll and lock-in.
+// "Surprise me": filter-aware random pick with a gentle reveal, reroll and lock-in.
+// <SurpriseContent> is the body (used by the Surprise page); <SurpriseMe> wraps it in a sheet.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Dices, Lock, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { ChevronRight, Dices, Lock, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { addDays, format, nextSaturday } from 'date-fns';
 import { useApp } from '../store/AppStore.jsx';
 import { useDecoratedItems } from '../lib/hooks.js';
 import { EMPTY_FILTERS, applyFilters, randomPick } from '../lib/stats.js';
-import { CATEGORY_META } from '../lib/constants.js';
 import { fmtMoney } from '../lib/utils.js';
 import { FilterFields, activeFilterCount } from './Filters.jsx';
 import { Field, Modal, MutualBadge, StoredImage } from './ui.jsx';
+import { CategoryDot, CategoryPlaceholder } from './icons.jsx';
 
 const PRESETS = [
-  { label: '💸 Cheap', patch: { maxCost: '2000' } },
-  { label: '📅 This weekend', patch: { when: 'weekend' } },
-  { label: '💞 Both 4★+', patch: { mutualOnly: true } },
-  { label: '🔥 Must-do', patch: { priorities: ['Must-do'] } },
+  { label: 'Under ₹2,000', patch: { maxCost: '2000' } },
+  { label: 'This weekend', patch: { when: 'weekend' } },
+  { label: 'Both love it', patch: { mutualOnly: true } },
+  { label: 'Must-do', patch: { priorities: ['Must-do'] } },
 ];
 
-export default function SurpriseMe({ open, onClose, initialFilters }) {
+export function SurpriseContent({ onDone, initialFilters }) {
   const { me, updateItem } = useApp();
   const nav = useNavigate();
   const all = useDecoratedItems();
@@ -29,10 +30,8 @@ export default function SurpriseMe({ open, onClose, initialFilters }) {
   const [lockDate, setLockDate] = useState(format(nextSaturday(new Date()), 'yyyy-MM-dd'));
   const timer = useRef();
 
-  // Open items only — "what should we do next?"
+  // Open dreams only — "what should we do next?"
   const pool = useMemo(() => applyFilters(all.filter((i) => i.status !== 'Completed'), { ...filters, hideCompleted: true }, me?.id), [all, filters, me]);
-
-  useEffect(() => { if (open) { setPhase('setup'); setPick(null); setFilters({ ...EMPTY_FILTERS, ...initialFilters }); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearInterval(timer.current), []);
 
   function spin(excludeId) {
@@ -42,110 +41,115 @@ export default function SurpriseMe({ open, onClose, initialFilters }) {
     clearInterval(timer.current);
     timer.current = setInterval(() => {
       setTicker(pool[Math.floor(Math.random() * pool.length)].title);
-      if (++n > 14) {
+      if (++n > 12) {
         clearInterval(timer.current);
         setPick(randomPick(pool, excludeId));
         setPhase('revealed');
-        navigator.vibrate?.([20, 40, 20]);
+        navigator.vibrate?.(12);
       }
-    }, 90);
+    }, 110);
   }
 
   async function lockIn() {
-    await updateItem(pick.id, { status: 'Planned', start_date: lockDate, end_date: null }, 'Locked in! It’s on the calendar 📅');
-    onClose();
+    await updateItem(pick.id, { status: 'Planned', start_date: lockDate, end_date: null }, 'Locked in — it’s on the calendar');
+    onDone?.();
     nav(`/item/${pick.id}`);
   }
 
-  const meta = pick ? CATEGORY_META[pick.category] || CATEGORY_META.Other : null;
+  const togglePreset = (patch) => setFilters((f) => {
+    const on = Object.entries(patch).every(([k, v]) => JSON.stringify(f[k]) === JSON.stringify(v));
+    return { ...f, ...(on ? Object.fromEntries(Object.keys(patch).map((k) => [k, EMPTY_FILTERS[k]])) : patch) };
+  });
 
-  return (
-    <Modal open={open} onClose={onClose} title="Surprise me ✨">
-      {phase === 'setup' && (
-        <div className="space-y-4">
-          <p className="muted text-sm">We'll pick something from <b>{pool.length}</b> open item{pool.length === 1 ? '' : 's'} that match. Mutual favourites get a little extra luck.</p>
-          <div className="flex flex-wrap gap-1.5">
-            {PRESETS.map((p) => (
-              <button key={p.label} className="chip-toggle" onClick={() => setFilters((f) => ({ ...f, ...p.patch }))}>{p.label}</button>
-            ))}
-          </div>
-          <details className="rounded-xl bg-white p-3 dark:bg-ink-800">
-            <summary className="flex cursor-pointer items-center gap-2 text-sm font-bold">
-              <SlidersHorizontal size={16} /> More filters {activeFilterCount(filters) > 0 && <span className="chip bg-rose-600 text-white">{activeFilterCount(filters)}</span>}
-            </summary>
-            <div className="pt-4"><FilterFields value={filters} onChange={setFilters} showStatus={false} /></div>
-          </details>
-          {pool.length === 0 ? (
-            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">Nothing matches these filters. Loosen them a little?
-              <button className="ml-2 font-bold underline" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</button></p>
-          ) : (
-            <button className="btn-primary w-full py-3 text-base" onClick={() => spin()}><Dices size={20} /> Pick for us!</button>
-          )}
+  if (phase === 'spinning') {
+    return (
+      <div className="grid h-72 place-items-center text-center">
+        <div>
+          <Dices size={28} strokeWidth={1.4} className="mx-auto mb-4 animate-spin text-rose-500" />
+          <p className="title-serif text-[24px] opacity-60 transition">{ticker}</p>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {phase === 'spinning' && (
-        <div className="grid h-56 place-items-center text-center">
-          <div>
-            <div className="mb-3 animate-spin text-5xl" aria-hidden>🎲</div>
-            <p className="font-display text-xl font-bold blur-[1px]">{ticker}</p>
+  if (phase === 'revealed' && pick) {
+    return (
+      <div className="space-y-5" style={{ perspective: 900 }}>
+        <div className="animate-flip">
+          <div className="aspect-[4/3] overflow-hidden rounded-3xl bg-cream-100 dark:bg-ink-900">
+            <StoredImage path={pick._cover} className="h-full w-full" fallback={<CategoryPlaceholder category={pick.category} size={40} />} />
           </div>
-        </div>
-      )}
-
-      {phase === 'revealed' && pick && (
-        <div className="space-y-4 text-center" style={{ perspective: 800 }}>
-          <div className="relative">
-            <Confetti />
-            <div className="card mx-auto overflow-hidden animate-flip">
-              <div className="h-36" style={{ background: `linear-gradient(135deg, ${meta.color}44, ${meta.color}11)` }}>
-                <StoredImage path={pick._cover} className="h-full w-full" fallback={<span className="grid h-full place-items-center text-6xl">{meta.emoji}</span>} />
-              </div>
-              <div className="p-4">
-                <p className="muted text-xs font-bold uppercase tracking-wider">Your next adventure</p>
-                <h3 className="mt-1 text-2xl font-bold">{pick.title}</h3>
-                <p className="muted mt-1 text-sm">{[pick.category, pick.est_cost ? fmtMoney(pick.est_cost, pick.currency) : null, pick.timeframe].filter(Boolean).join(' · ')}</p>
-                {pick._votes.mutual && <div className="mt-2"><MutualBadge /></div>}
-              </div>
+          <div className="pt-5 text-center">
+            <p className="section-title">Your next adventure</p>
+            <h3 className="title-serif mt-2 text-[34px] leading-tight">{pick.title}</h3>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+              <CategoryDot category={pick.category} />
+              {pick.est_cost ? <span className="muted text-[13px]">{fmtMoney(pick.est_cost, pick.currency)}</span> : null}
+              {pick.timeframe && <span className="muted text-[13px]">{pick.timeframe}</span>}
+              {pick._votes.mutual && <MutualBadge small />}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button className="btn-soft" onClick={() => spin(pick.id)} disabled={pool.length < 2}><RefreshCw size={16} /> Reroll</button>
-            <button className="btn-primary" onClick={() => setPhase('lock')}><Lock size={16} /> Lock it in</button>
-          </div>
-          <button className="btn-ghost w-full" onClick={() => { onClose(); nav(`/item/${pick.id}`); }}>View details</button>
         </div>
-      )}
+        <button className="btn-primary w-full" onClick={() => setPhase('lock')}><Lock size={16} strokeWidth={1.75} /> Lock it in</button>
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn-soft" onClick={() => spin(pick.id)} disabled={pool.length < 2}><RefreshCw size={15} strokeWidth={1.75} /> Pick again</button>
+          <button className="btn-soft" onClick={() => { onDone?.(); nav(`/item/${pick.id}`); }}>View dream</button>
+        </div>
+      </div>
+    );
+  }
 
-      {phase === 'lock' && pick && (
-        <div className="space-y-4">
-          <p className="text-[15px]">Set <b>{pick.title}</b> to <b>Planned</b> on:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {[['This Saturday', nextSaturday(new Date())], ['Next week', addDays(new Date(), 7)], ['In a month', addDays(new Date(), 30)]].map(([l, d]) => (
-              <button key={l} className="chip-toggle" aria-pressed={lockDate === format(d, 'yyyy-MM-dd')} onClick={() => setLockDate(format(d, 'yyyy-MM-dd'))}>{l}</button>
-            ))}
-          </div>
-          <Field label="Date"><input type="date" className="input" value={lockDate} onChange={(e) => setLockDate(e.target.value)} /></Field>
-          <div className="grid grid-cols-2 gap-2">
-            <button className="btn-ghost" onClick={() => setPhase('revealed')}>Back</button>
-            <button className="btn-primary" disabled={!lockDate} onClick={lockIn}>Lock in 💕</button>
-          </div>
+  if (phase === 'lock' && pick) {
+    return (
+      <div className="space-y-5">
+        <p className="text-[15px]">Plan <span className="font-medium">{pick.title}</span> for:</p>
+        <div className="flex flex-wrap gap-1.5">
+          {[['This Saturday', nextSaturday(new Date())], ['Next week', addDays(new Date(), 7)], ['In a month', addDays(new Date(), 30)]].map(([l, d]) => (
+            <button key={l} className="chip-toggle" aria-pressed={lockDate === format(d, 'yyyy-MM-dd')} onClick={() => setLockDate(format(d, 'yyyy-MM-dd'))}>{l}</button>
+          ))}
         </div>
+        <Field label="Date"><input type="date" className="input" value={lockDate} onChange={(e) => setLockDate(e.target.value)} /></Field>
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn-soft" onClick={() => setPhase('revealed')}>Back</button>
+          <button className="btn-primary" disabled={!lockDate} onClick={lockIn}>Lock in</button>
+        </div>
+      </div>
+    );
+  }
+
+  // setup
+  return (
+    <div className="space-y-5">
+      <p className="muted text-[15px]">Let chance choose from {pool.length} open dream{pool.length === 1 ? '' : 's'}. The ones you both love get a little extra luck.</p>
+      <div className="flex flex-wrap gap-1.5">
+        {PRESETS.map((p) => {
+          const on = Object.entries(p.patch).every(([k, v]) => JSON.stringify(filters[k]) === JSON.stringify(v));
+          return <button key={p.label} className="chip-toggle" aria-pressed={on} onClick={() => togglePreset(p.patch)}>{p.label}</button>;
+        })}
+      </div>
+      <details className="group list-group">
+        <summary className="list-row cursor-pointer">
+          <SlidersHorizontal size={17} strokeWidth={1.6} className="text-ink-500" />
+          <span className="flex-1 text-[15px]">More filters</span>
+          {activeFilterCount(filters) > 0 && <span className="muted text-[13px]">{activeFilterCount(filters)} on</span>}
+          <ChevronRight size={16} className="chev text-ink-500 transition-transform" />
+        </summary>
+        <div className="border-t border-line px-4 py-4 dark:border-line-dark"><FilterFields value={filters} onChange={setFilters} showStatus={false} /></div>
+      </details>
+      {pool.length === 0 ? (
+        <p className="muted text-[14px]">Nothing matches these filters. <button className="btn-link" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</button></p>
+      ) : (
+        <button className="btn-primary w-full" onClick={() => spin()}><Dices size={18} strokeWidth={1.6} /> Surprise us</button>
       )}
-    </Modal>
+    </div>
   );
 }
 
-/** A little burst of hearts behind the revealed card. */
-function Confetti() {
-  const bits = useMemo(() => Array.from({ length: 16 }, (_, k) => ({
-    k, left: Math.random() * 100, delay: Math.random() * 0.3, emoji: ['💖', '✨', '💕', '🎉'][k % 4], rot: Math.random() * 60 - 30,
-  })), []);
+/** Sheet wrapper (kept for places that open it in context). */
+export default function SurpriseMe({ open, onClose, initialFilters }) {
   return (
-    <div className="pointer-events-none absolute inset-x-0 -top-4 z-10 h-0" aria-hidden>
-      {bits.map((b) => (
-        <span key={b.k} className="absolute animate-pop text-xl" style={{ left: `${b.left}%`, top: `${(b.k % 4) * 10 - 10}px`, animationDelay: `${b.delay}s`, transform: `rotate(${b.rot}deg)` }}>{b.emoji}</span>
-      ))}
-    </div>
+    <Modal open={open} onClose={onClose} title="Surprise me">
+      {open && <SurpriseContent onDone={onClose} initialFilters={initialFilters} />}
+    </Modal>
   );
 }

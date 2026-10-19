@@ -90,10 +90,10 @@ export function activityFeed(data, n = 12) {
   for (const i of data.items) {
     ev.push({ kind: 'added', at: i.created_at, user: i.created_by, itemId: i.id, text: `added “${i.title}”` });
     if (i.status === 'Completed' && i.completed_at)
-      ev.push({ kind: 'completed', at: i.updated_at || i.completed_at, user: null, itemId: i.id, text: `completed “${i.title}” 🎉` });
+      ev.push({ kind: 'completed', at: i.updated_at || i.completed_at, user: null, itemId: i.id, text: `completed “${i.title}”` });
   }
   for (const c of data.comments) ev.push({ kind: 'comment', at: c.created_at, user: c.user_id, itemId: c.item_id, text: `commented on “${title.get(c.item_id) ?? 'an item'}”` });
-  for (const v of data.item_votes) ev.push({ kind: 'vote', at: v.updated_at, user: v.user_id, itemId: v.item_id, text: `rated “${title.get(v.item_id) ?? 'an item'}” ${'★'.repeat(v.stars)}` });
+  for (const v of data.item_votes) ev.push({ kind: 'vote', at: v.updated_at, user: v.user_id, itemId: v.item_id, text: `rated “${title.get(v.item_id) ?? 'an item'}” ${''.repeat(v.stars)}` });
   for (const p of data.item_photos) if (p.item_id) ev.push({ kind: 'photo', at: p.created_at, user: p.uploaded_by, itemId: p.item_id, text: `added a photo to “${title.get(p.item_id) ?? 'an item'}”` });
   return sortBy(ev.filter((e) => e.at), (e) => e.at, -1).slice(0, n);
 }

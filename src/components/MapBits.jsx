@@ -8,15 +8,13 @@ import { Search } from 'lucide-react';
 import { Spinner } from './ui.jsx';
 
 // A heart-shaped pin as a DivIcon (avoids Leaflet's default image paths breaking under Vite).
-export const heartIcon = (color = '#e2555a', label = '') =>
+export const heartIcon = (color = '#C65D70') =>
   L.divIcon({
     className: '',
-    iconSize: [34, 42],
-    iconAnchor: [17, 40],
-    popupAnchor: [0, -36],
-    html: `<div style="position:relative;width:34px;height:42px">
-      <svg viewBox="0 0 34 42" width="34" height="42"><path d="M17 41s-15-12-15-24A15 15 0 0 1 32 17c0 12-15 24-15 24z" fill="${color}" stroke="white" stroke-width="2"/></svg>
-      <span style="position:absolute;top:7px;left:0;width:34px;text-align:center;font-size:15px">${label}</span></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    popupAnchor: [0, -12],
+    html: `<span style="display:block;width:22px;height:22px;border-radius:999px;background:${color};border:3px solid #fff;box-shadow:0 1px 6px rgba(37,35,38,.3)"></span>`,
   });
 
 export const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -57,10 +55,10 @@ export function MapPicker({ lat, lng, query, onChange }) {
         <button type="button" className="btn-soft px-3" onClick={search} aria-label="Search place">{busy ? <Spinner className="h-4 w-4" /> : <Search size={18} />}</button>
       </div>
       {results.length > 0 && (
-        <ul className="card max-h-40 overflow-y-auto text-sm">
+        <ul className="list-group hairline max-h-44 overflow-y-auto text-[14px]">
           {results.map((r) => (
             <li key={r.place_id}>
-              <button type="button" className="w-full px-3 py-2 text-left hover:bg-rose-50 dark:hover:bg-white/5"
+              <button type="button" className="w-full px-3 py-2 text-left hover:bg-cream-50 dark:hover:bg-white/5"
                 onClick={() => { onChange({ lat: +r.lat, lng: +r.lon, name: r.display_name.split(',').slice(0, 2).join(',') }); setResults([]); }}>
                 {r.display_name}
               </button>
@@ -76,17 +74,17 @@ export function MapPicker({ lat, lng, query, onChange }) {
           {lat !== null && lat !== undefined && <Marker position={[lat, lng]} icon={heartIcon()} />}
         </MapContainer>
       </div>
-      <p className="muted text-xs">Tap the map to place the pin.</p>
+      <p className="muted text-[13px]">Tap the map to place the pin.</p>
     </div>
   );
 }
 
-export function MiniMap({ lat, lng, emoji }) {
+export function MiniMap({ lat, lng }) {
   return (
-    <div className="h-40 overflow-hidden rounded-2xl">
+    <div className="h-40 overflow-hidden rounded-2xl border border-line dark:border-line-dark">
       <MapContainer center={[lat, lng]} zoom={11} className="h-full w-full" scrollWheelZoom={false} dragging={false} zoomControl={false}>
         <TileLayer url={TILE_URL} attribution={TILE_ATTR} />
-        <Marker position={[lat, lng]} icon={heartIcon('#e2555a', emoji)} />
+        <Marker position={[lat, lng]} icon={heartIcon()} />
       </MapContainer>
     </div>
   );

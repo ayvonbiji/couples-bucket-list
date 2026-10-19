@@ -197,7 +197,7 @@ export function AppProvider({ children }) {
           if (photos[0]) await update('items', item.id, { cover_photo_id: photos[0].id });
         }
         return item;
-      }, 'Added to your list 💕'),
+      }, 'Added to your list'),
 
       updateItem: (id, patch, msg) => run(async () => {
         const r = await update('items', id, patch);
@@ -211,7 +211,7 @@ export function AppProvider({ children }) {
         if (files.length) await uploadPhotos({ item_id: id }, files);
         await syncJournalForItem({ ...raw.items.find((i) => i.id === id), ...r });
         return r;
-      }, 'Completed! Saved to your Memories 🎉'),
+      }, 'Completed! Saved to your Memories'),
 
       reopenItem: (id) => run(async () => {
         await update('items', id, { status: 'In Progress', completed_at: null });
@@ -219,7 +219,7 @@ export function AppProvider({ children }) {
         if (j) await remove('journal_entries', j.id);
       }, 'Moved back to In Progress'),
 
-      revealSurprise: (id) => run(() => update('items', id, { revealed_at: new Date().toISOString() }), 'Surprise revealed! 🎁'),
+      revealSurprise: (id) => run(() => update('items', id, { revealed_at: new Date().toISOString() }), 'Surprise revealed!'),
 
       softDelete: (ids) => run(async () => {
         const at = new Date().toISOString();
@@ -271,7 +271,7 @@ export function AppProvider({ children }) {
       deleteLink: (id) => run(() => remove('item_links', id)),
 
       // ---------- photos ----------
-      uploadPhotos: (target, files, onProgress) => run(() => uploadPhotos(target, files, onProgress), files.length > 1 ? `${files.length} photos added 📸` : 'Photo added 📸'),
+      uploadPhotos: (target, files, onProgress) => run(() => uploadPhotos(target, files, onProgress), files.length > 1 ? `${files.length} photos added` : 'Photo added'),
       updatePhoto: (id, patch) => run(() => update('item_photos', id, patch)),
       reorderPhotos: (ordered) => run(async () => {
         for (const [k, p] of ordered.entries()) if (p.position !== k) await update('item_photos', p.id, { position: k });
@@ -291,12 +291,12 @@ export function AppProvider({ children }) {
       }),
 
       // ---------- wishlist ----------
-      addGift: (values) => run(() => insert('wishlist_entries', { ...values, created_by: me.id }), values.is_hidden ? 'Gift idea hidden until reveal 🤫' : 'Gift idea added 🎁'),
+      addGift: (values) => run(() => insert('wishlist_entries', { ...values, created_by: me.id }), values.is_hidden ? 'Gift idea hidden until reveal' : 'Gift idea added'),
       updateGift: (id, patch) => run(() => update('wishlist_entries', id, patch)),
       deleteGift: (id) => run(() => remove('wishlist_entries', id), 'Gift idea removed'),
 
       // ---------- important dates ----------
-      addDate: (values) => run(() => insert('important_dates', { ...values, created_by: me.id }), 'Date saved 💞'),
+      addDate: (values) => run(() => insert('important_dates', { ...values, created_by: me.id }), 'Date saved'),
       updateDate: (id, patch) => run(() => update('important_dates', id, patch), 'Saved'),
       deleteDate: (id) => run(async () => {
         const d = raw.important_dates.find((x) => x.id === id);
@@ -309,7 +309,7 @@ export function AppProvider({ children }) {
         const j = await insert('journal_entries', { ...values, created_by: me.id });
         if (files.length) await uploadPhotos({ journal_entry_id: j.id }, files);
         return j;
-      }, 'Memory saved 📖'),
+      }, 'Memory saved'),
       updateJournal: (id, patch) => run(() => update('journal_entries', id, patch), 'Saved'),
       deleteJournal: (id) => run(async () => {
         await deletePhotoRows(raw.item_photos.filter((p) => p.journal_entry_id === id));
@@ -337,7 +337,7 @@ export function AppProvider({ children }) {
         await insert('backups', { created_by: me.id, kind, format: 'json', storage_path: path, size_bytes: blob.size, item_count: raw.items.length });
         const w = await backend.updateWorkspace(ws.id, { last_backup_at: new Date().toISOString() });
         setMembership((m) => ({ ...m, workspace: { ...m.workspace, ...w } }));
-      }, kind === 'auto' ? null : 'Backed up to the cloud ☁️'),
+      }, kind === 'auto' ? null : 'Backed up to the cloud'),
 
       downloadBackup: (b) => run(async () => {
         const blob = await backend.downloadFile('backups', b.storage_path);
@@ -361,7 +361,7 @@ export function AppProvider({ children }) {
           await backend.importRows(table, full);
         }
         await reload();
-      }, 'Backup restored 💾'),
+      }, 'Backup restored'),
 
       // ---------- demo helpers ----------
       switchDemoUser: (userId) => backend.signInDemo?.(userId),
@@ -413,7 +413,7 @@ async function seedWorkspace(backend, ws, meId, partnerId) {
     if (k < 4) await backend.upsert('item_votes', { ...base, item_id: item.id, user_id: meId, stars: [5, 3, 4, 5][k], updated_at: new Date().toISOString() }, 'item_id,user_id');
     // Demo Mode has both partners present, so seed their votes too (shows the "We both want this" badge).
     if (partnerId && k < 4) await backend.upsert('item_votes', { ...base, item_id: item.id, user_id: partnerId, stars: [5, 4, 3, 4][k], updated_at: new Date().toISOString() }, 'item_id,user_id');
-    if (partnerId && k === 0) await backend.insert('comments', { ...base, item_id: item.id, user_id: partnerId, body: 'Can we pick a boat with a top deck? 🌅' });
+    if (partnerId && k === 0) await backend.insert('comments', { ...base, item_id: item.id, user_id: partnerId, body: 'Can we pick a boat with a top deck?' });
     if (item.status === 'Completed') {
       await backend.insert('journal_entries', {
         ...base, item_id: item.id, created_by: meId, title: item.title, entry_date: item.completed_at,
@@ -427,7 +427,7 @@ async function seedWorkspace(backend, ws, meId, partnerId) {
     // A secret gift idea from the partner, hidden from "Me" until the reveal date.
     await backend.insert('wishlist_entries', {
       ...base, created_by: partnerId, for_user_id: meId, name: 'Engraved compass', price: 2400, currency: ws.currency,
-      notes: 'For the anniversary 🧭', is_hidden: true,
+      notes: 'For the anniversary', is_hidden: true,
       reveal_date: new Date(Date.now() + 18 * 86400000).toISOString().slice(0, 10),
     });
   }

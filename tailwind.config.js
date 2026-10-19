@@ -1,37 +1,47 @@
 /** @type {import('tailwindcss').Config} */
+// Design system: calm neutrals + one muted rose accent, used sparingly.
+//   background #FAF9F7 · text #252326 · secondary #858087 · accent #C65D70 · blush #F6E9EC · borders #EAE6E5
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        // Warm "rose & terracotta" palette. Contrast checked against cream and ink backgrounds.
+        // Accent scale built around #C65D70. 600 is used for filled buttons (≈4.8:1 with white text).
         rose: {
-          50: '#fff5f5', 100: '#ffe4e4', 200: '#fecdcd', 300: '#fca5a5', 400: '#f27979',
-          500: '#e2555a', 600: '#c73b45', 700: '#a52d38', 800: '#862733', 900: '#6f2430',
+          50: '#FBF4F6', 100: '#F6E9EC', 200: '#EFD5DB', 300: '#E2B2BC', 400: '#D4899A',
+          500: '#C65D70', 600: '#B04C60', 700: '#933E4F', 800: '#763342', 900: '#5C2934',
         },
-        cream: { 50: '#fffbf6', 100: '#fdf4ea', 200: '#f8e7d4' },
-        ink: { 700: '#3b2a2f', 800: '#2a1e22', 900: '#1c1417', 950: '#140e10' },
-        gold: { 400: '#f5b84a', 500: '#e59f22' },
+        // Warm neutrals (backgrounds, borders)
+        cream: { 50: '#FAF9F7', 100: '#F3F1EE', 200: '#EAE6E5', 300: '#DCD7D5' },
+        // Charcoal (text in light mode, surfaces in dark mode)
+        ink: { 500: '#858087', 600: '#6B666D', 700: '#4A464B', 800: '#252326', 900: '#1C1A1D', 950: '#141215' },
+        line: { DEFAULT: '#EAE6E5', dark: '#2E2B2F' },
+        gold: { 400: '#D9A441', 500: '#C8922F' },
       },
       fontFamily: {
-        display: ['"Fraunces"', 'Georgia', 'serif'],
-        sans: ['"Nunito Sans"', 'system-ui', 'sans-serif'],
+        display: ['"Instrument Serif"', 'Georgia', 'serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       boxShadow: {
-        soft: '0 2px 10px -2px rgba(120, 50, 60, 0.12), 0 1px 3px rgba(120, 50, 60, 0.06)',
+        soft: '0 1px 2px rgba(37, 35, 38, 0.04)',
+        float: '0 8px 30px -12px rgba(37, 35, 38, 0.25)',
       },
       keyframes: {
-        'fade-up': { '0%': { opacity: 0, transform: 'translateY(8px)' }, '100%': { opacity: 1, transform: 'none' } },
-        'pop': { '0%': { transform: 'scale(.6)', opacity: 0 }, '70%': { transform: 'scale(1.08)' }, '100%': { transform: 'scale(1)', opacity: 1 } },
-        'flip': { '0%': { transform: 'rotateY(90deg)' }, '100%': { transform: 'rotateY(0)' } },
-        'heartbeat': { '0%,100%': { transform: 'scale(1)' }, '30%': { transform: 'scale(1.25)' } },
+        'fade-up': { '0%': { opacity: 0, transform: 'translateY(6px)' }, '100%': { opacity: 1, transform: 'none' } },
+        'fade-in': { '0%': { opacity: 0 }, '100%': { opacity: 1 } },
+        'sheet-up': { '0%': { transform: 'translateY(24px)', opacity: 0 }, '100%': { transform: 'none', opacity: 1 } },
+        'pop': { '0%': { transform: 'scale(.96)', opacity: 0 }, '100%': { transform: 'scale(1)', opacity: 1 } },
+        'flip': { '0%': { transform: 'rotateY(80deg)', opacity: 0 }, '100%': { transform: 'rotateY(0)', opacity: 1 } },
+        'heartbeat': { '0%,100%': { transform: 'scale(1)' }, '40%': { transform: 'scale(1.15)' } },
       },
       animation: {
-        'fade-up': 'fade-up .35s ease-out both',
-        'pop': 'pop .45s cubic-bezier(.2,.9,.3,1.3) both',
-        'flip': 'flip .5s ease-out both',
-        'heartbeat': 'heartbeat .4s ease-out',
+        'fade-up': 'fade-up .3s cubic-bezier(.2,.8,.2,1) both',
+        'fade-in': 'fade-in .2s ease-out both',
+        'sheet-up': 'sheet-up .28s cubic-bezier(.2,.8,.2,1) both',
+        'pop': 'pop .3s cubic-bezier(.2,.8,.2,1) both',
+        'flip': 'flip .5s cubic-bezier(.2,.8,.2,1) both',
+        'heartbeat': 'heartbeat .35s ease-out',
       },
     },
   },

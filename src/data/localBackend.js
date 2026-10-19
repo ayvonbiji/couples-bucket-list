@@ -3,20 +3,22 @@
 // Two demo partners share one workspace so you can try every feature (switch
 // between them in Settings to see surprises & hidden gifts from the other side).
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
-import { COMPOSITE_KEYS, DATA_TABLES, DEFAULTS, ITEM_CHILDREN } from './tables.js';
+import { COMPOSITE_KEYS, DATA_TABLES, DEFAULTS, FANTASY_DEFAULTS, FANTASY_TABLES, ITEM_CHILDREN } from './tables.js';
+
+const ALL_TABLES = [...DATA_TABLES, ...FANTASY_TABLES];
 import { uid } from '../lib/utils.js';
 
 const KEY = 'cbl:db:v1';
 const USER_KEY = 'cbl:demoUser';
 
 export const DEMO_USERS = [
-  { id: '00000000-0000-4000-8000-00000000000a', email: 'me@demo.local', display_name: 'Me', avatar_color: '#e2555a' },
-  { id: '00000000-0000-4000-8000-00000000000b', email: 'partner@demo.local', display_name: 'My Love', avatar_color: '#8b5cf6' },
+  { id: '00000000-0000-4000-8000-00000000000a', email: 'me@demo.local', display_name: 'Me', avatar_color: '#C65D70' },
+  { id: '00000000-0000-4000-8000-00000000000b', email: 'partner@demo.local', display_name: 'My Love', avatar_color: '#7D6B91' },
 ];
 
 function emptyDb() {
   const db = { users: [...DEMO_USERS], workspaces: [], workspace_members: [] };
-  for (const t of DATA_TABLES) db[t] = [];
+  for (const t of ALL_TABLES) db[t] = [];
   return db;
 }
 
@@ -25,7 +27,7 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return emptyDb();
     const db = JSON.parse(raw);
-    for (const t of DATA_TABLES) db[t] ||= [];
+    for (const t of ALL_TABLES) db[t] ||= [];
     return db;
   } catch {
     return emptyDb();
@@ -123,9 +125,9 @@ export function createLocalBackend() {
       return Object.fromEntries(DATA_TABLES.map((t) => [t, clone(db[t].filter((r) => r.workspace_id === wsId))]));
     },
     async insert(table, row) {
-      const full = { ...DEFAULTS[table], ...row, created_at: row.created_at || now() };
+      const full = { ...(DEFAULTS[table] || FANTASY_DEFAULTS[table]), ...row, created_at: row.created_at || now() };
       if (!COMPOSITE_KEYS[table]) full.id ||= uid();
-      if (table === 'items') full.updated_at = full.created_at;
+      if (table === 'items' || FANTASY_TABLES.includes(table)) full.updated_at ||= full.created_at;
       if (table === 'journal_entries' && full.item_id && db.journal_entries.some((j) => j.item_id === full.item_id))
         throw new Error('This item already has a journal entry');
       db[table].push(full);
@@ -148,17 +150,36 @@ export function createLocalBackend() {
       const row = db[table].find((r) => matches(r, match));
       if (!row) throw new Error('Not found — it may have been deleted');
       Object.assign(row, patch);
-      if (table === 'items') row.updated_at = now();
+      if (table === 'items' || FANTASY_TABLES.includes(table)) row.updated_at = now();
       save();
       return clone(row);
     },
     async remove(table, match) {
       const gone = db[table].filter((r) => matches(r, match));
       if (table === 'items') gone.forEach((i) => cascadeItem(i.id));
+      if (table === 'fantasies') gone.forEach((f) => {
+        for (const t of FANTASY_TABLES.slice(1)) db[t] = db[t].filter((r) => r.fantasy_id !== f.id);
+        if (f.image_path) idbDel(`fantasy/${f.image_path}`);
+      });
       if (table === 'journal_entries') gone.forEach((j) => (db.item_photos = db.item_photos.filter((p) => p.journal_entry_id !== j.id)));
       db[table] = db[table].filter((r) => !matches(r, match));
       save();
     },
+    /**
+     * Secret Fantasy rows the viewer may see — mirrors the RLS policies in 0002_secret_fantasy.sql.
+     * (Demo Mode keeps everything in this one browser, so this is a simulation of the server rules.)
+     */
+    async loadFantasies(wsId, viewerId) {
+      const visible = db.fantasies.filter((f) => f.workspace_id === wsId && (f.created_by === viewerId || f.status !== 'private'));
+      const ids = new Set(visible.map((f) => f.id));
+      return {
+        fantasies: clone(visible),
+        fantasy_responses: clone(db.fantasy_responses.filter((r) => ids.has(r.fantasy_id))),
+        fantasy_notes: clone(db.fantasy_notes.filter((r) => ids.has(r.fantasy_id) && r.user_id === viewerId)),
+        fantasy_comments: clone(db.fantasy_comments.filter((r) => ids.has(r.fantasy_id))),
+      };
+    },
+    subscribeFantasies(_wsId, onChange) { changeListeners.add(onChange); return () => changeListeners.delete(onChange); },
     async dashboardSummary() { return null; }, // computed client-side in demo mode
     async sharedList(token) {
       const w = db.workspaces.find((x) => x.share_token === token && x.share_enabled);

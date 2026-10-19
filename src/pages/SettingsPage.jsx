@@ -1,15 +1,14 @@
 // Settings: profile, partner link, appearance, notifications, Google Calendar, sharing, data, demo tools.
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Bell, CalendarHeart, ChevronRight, Copy, Download, Gift, LogOut, Moon, Repeat, Share2, Trash2, Users } from 'lucide-react';
+import { Bell, Copy, LogOut, Repeat, Share2 } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { DEMO_USERS } from '../data/localBackend.js';
 import { CURRENCIES } from '../lib/constants.js';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications.js';
-import { Avatar, ConfirmDialog, Field, PageHeader, Segmented, Toggle } from '../components/ui.jsx';
+import { Avatar, ConfirmDialog, PageHeader, SegmentedControl, Toggle } from '../components/ui.jsx';
 import { errMsg } from '../lib/utils.js';
 
-const COLORS = ['#e2555a', '#8b5cf6', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#64748b'];
+const COLORS = ['#C65D70', '#7D6B91', '#6E8FAF', '#6F9884', '#C39A62', '#B0809A', '#6B666D'];
 
 function applyTheme(t) {
   localStorage.setItem('cbl:theme', t);
@@ -18,7 +17,7 @@ function applyTheme(t) {
 }
 
 export default function SettingsPage() {
-  const { me, partner, workspace, mode, backend, trash, updateProfile, updateWorkspace, switchDemoUser, toast } = useApp();
+  const { me, partner, workspace, mode, backend, updateProfile, updateWorkspace, switchDemoUser, toast } = useApp();
   const [name, setName] = useState(me.display_name || '');
   const [ical, setIcal] = useState(me.gcal_ical_url || '');
   const [wsName, setWsName] = useState(workspace.name);
@@ -33,123 +32,122 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings" />
-      <div className="space-y-5 px-4 pb-8">
+      <PageHeader title="Settings" back />
+      <div className="space-y-7 px-5 pb-10">
         {/* Profile */}
-        <section className="card space-y-4 p-4">
-          <div className="flex items-center gap-3"><Avatar user={me} size={48} /><div><h2 className="section-title">You</h2><p className="muted text-sm">{me.email}</p></div></div>
-          <Field label="Display name">
-            <div className="flex gap-2">
-              <input className="input" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
-              <button className="btn-soft" disabled={!name.trim() || name === me.display_name} onClick={() => updateProfile({ display_name: name.trim() })}>Save</button>
+        <Group title="You">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Avatar user={me} size={44} />
+            <div className="min-w-0 flex-1">
+              <input className="w-full bg-transparent text-[16px] font-medium focus:outline-none" maxLength={40} value={name} onChange={(e) => setName(e.target.value)}
+                onBlur={() => name.trim() && name !== me.display_name && updateProfile({ display_name: name.trim() })} aria-label="Display name" />
+              <p className="muted truncate text-[13px]">{me.email}</p>
             </div>
-          </Field>
-          <div><span className="label">Colour</span>
+          </div>
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[15px]">Colour</span>
             <div className="flex gap-2">{COLORS.map((c) => (
               <button key={c} onClick={() => updateProfile({ avatar_color: c })} aria-label={`Colour ${c}`} aria-pressed={me.avatar_color === c}
-                className={`h-8 w-8 rounded-full ring-offset-2 ring-offset-white dark:ring-offset-ink-800 ${me.avatar_color === c ? 'ring-2 ring-ink-800 dark:ring-cream-100' : ''}`} style={{ background: c }} />
+                className={`h-6 w-6 rounded-full ring-offset-2 ring-offset-white transition dark:ring-offset-ink-900 ${me.avatar_color === c ? 'ring-[1.5px] ring-ink-800 dark:ring-cream-100' : ''}`} style={{ background: c }} />
             ))}</div>
           </div>
-        </section>
+        </Group>
 
         {/* Partner */}
-        <section className="card space-y-3 p-4">
-          <h2 className="section-title flex items-center gap-2"><Users size={18} /> Partner</h2>
+        <Group title="Partner">
           {partner ? (
-            <div className="flex items-center gap-3"><Avatar user={partner} size={40} /><div><b>{partner.display_name}</b><p className="muted text-sm">{partner.email} · linked 💞</p></div></div>
+            <div className="flex items-center gap-3 px-4 py-3">
+              <Avatar user={partner} size={36} />
+              <div className="min-w-0 flex-1"><p className="text-[15px]">{partner.display_name}</p><p className="muted truncate text-[13px]">{partner.email}</p></div>
+              <span className="muted text-[13px]">Linked</span>
+            </div>
           ) : (
-            <>
-              <p className="text-sm">Send this invite code to your partner. They sign in with their own email and choose <b>“I have a code”</b>.</p>
-              <button className="flex w-full items-center justify-between rounded-2xl bg-rose-50 px-4 py-3 dark:bg-rose-950/40" onClick={() => copy(workspace.invite_code, 'Invite code copied')}>
-                <span className="font-mono text-2xl font-bold tracking-[0.3em] text-rose-700 dark:text-rose-300">{workspace.invite_code}</span>
-                <Copy size={18} />
+            <div className="space-y-3 px-4 py-4">
+              <p className="text-[14px]">Send this code to your partner. They sign in with their own email and choose “I have a code”.</p>
+              <button className="flex w-full items-center justify-between rounded-xl bg-cream-100 px-4 py-3 dark:bg-white/5" onClick={() => copy(workspace.invite_code, 'Invite code copied')}>
+                <span className="font-mono text-[20px] tracking-[0.3em]">{workspace.invite_code}</span>
+                <Copy size={16} strokeWidth={1.6} className="text-ink-500" />
               </button>
-              {navigator.share && <button className="btn-soft w-full" onClick={() => navigator.share({ title: 'Join our bucket list', text: `Join our shared bucket list 💕 Sign in at ${window.location.origin} and enter code ${workspace.invite_code}` }).catch(() => {})}><Share2 size={16} /> Share invite</button>}
-            </>
+              {navigator.share && <button className="btn-link" onClick={() => navigator.share({ title: 'Join our bucket list', text: `Join our shared bucket list. Sign in at ${window.location.origin} and enter code ${workspace.invite_code}` }).catch(() => {})}><Share2 size={14} strokeWidth={1.75} /> Share invite</button>}
+            </div>
           )}
-        </section>
-
-        {/* Shortcuts */}
-        <section className="card divide-y divide-rose-100 dark:divide-white/5">
-          {[
-            ['/dates', CalendarHeart, 'Important dates', 'Birthdays, anniversaries, countdowns'],
-            ['/gifts', Gift, 'Gift ideas', 'Hints for me & secret plans'],
-            ['/export', Download, 'Export & backup', 'PDF, CSV, JSON, photo ZIP, restore'],
-            ['/trash', Trash2, 'Recently deleted', `${trash.length} item${trash.length === 1 ? '' : 's'} in Trash`],
-          ].map(([to, Icon, l, d]) => (
-            <Link key={to} to={to} className="flex items-center gap-3 p-4">
-              <Icon size={20} className="text-rose-600" />
-              <span className="flex-1"><span className="block font-bold">{l}</span><span className="muted text-xs">{d}</span></span>
-              <ChevronRight size={18} className="muted" />
-            </Link>
-          ))}
-        </section>
+        </Group>
 
         {/* Appearance */}
-        <section className="card space-y-3 p-4">
-          <h2 className="section-title flex items-center gap-2"><Moon size={18} /> Appearance</h2>
-          <Segmented value={theme} onChange={(t) => { setTheme(t); applyTheme(t); }} options={[{ value: 'system', label: 'System' }, { value: 'light', label: '☀️ Light' }, { value: 'dark', label: '🌙 Dark' }]} />
-        </section>
-
-        {/* Notifications */}
-        <section className="card space-y-2 p-4">
-          <h2 className="section-title flex items-center gap-2"><Bell size={18} /> Reminders</h2>
-          <p className="muted text-sm">Item reminders and important-date reminders pop up on this device while the app is open (install it to your home screen for best results).</p>
-          {perm === 'granted' ? <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">✓ Notifications are on</p>
-            : perm === 'unsupported' ? <p className="muted text-sm">This browser doesn't support notifications — reminders still show on the dashboard.</p>
-            : perm === 'denied' ? <p className="text-sm">Notifications are blocked. Allow them in your browser's site settings.</p>
-            : <button className="btn-soft" onClick={async () => setPerm(await requestNotificationPermission())}>Turn on notifications</button>}
-        </section>
-
-        {/* Google Calendar */}
-        <section className="card space-y-3 p-4">
-          <h2 className="section-title">📆 Google Calendar (read-only)</h2>
-          <p className="muted text-sm">In Google Calendar → Settings → your calendar → <i>Integrate calendar</i>, copy the <b>Secret address in iCal format</b> and paste it here. Your events appear on our Calendar view (read-only).</p>
-          <div className="flex gap-2">
-            <input className="input" inputMode="url" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" value={ical} onChange={(e) => setIcal(e.target.value)} />
-            <button className="btn-soft" disabled={ical === (me.gcal_ical_url || '') || (ical && !/^https:\/\//.test(ical))} onClick={() => updateProfile({ gcal_ical_url: ical.trim() || null })}>Save</button>
+        <Group title="Appearance">
+          <div className="px-4 py-3">
+            <SegmentedControl value={theme} onChange={(t) => { setTheme(t); applyTheme(t); }} options={[{ value: 'system', label: 'Automatic' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} />
           </div>
-          {mode === 'local' && <p className="text-xs text-amber-700 dark:text-amber-300">Needs Supabase mode (the feed is fetched through a small server function).</p>}
-        </section>
+        </Group>
 
-        {/* List settings + sharing */}
-        <section className="card space-y-4 p-4">
-          <h2 className="section-title">Our list</h2>
-          <Field label="Name">
-            <div className="flex gap-2">
-              <input className="input" maxLength={80} value={wsName} onChange={(e) => setWsName(e.target.value)} />
-              <button className="btn-soft" disabled={!wsName.trim() || wsName === workspace.name} onClick={() => updateWorkspace({ name: wsName.trim() }, 'Renamed')}>Save</button>
-            </div>
-          </Field>
-          <Field label="Default currency">
-            <select className="input" value={workspace.currency} onChange={(e) => updateWorkspace({ currency: e.target.value }, 'Currency updated')}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select>
-          </Field>
-          <Toggle checked={workspace.share_enabled} onChange={(on) => updateWorkspace({ share_enabled: on }, on ? 'Share link is live' : 'Share link turned off')}
-            label="Read-only share link" description="Anyone with the link can view the list (no surprises, gifts or comments). Turn off anytime." />
+        {/* Reminders */}
+        <Group title="Reminders" footer="Reminders appear on this device while the app is open. Add it to your home screen for the best experience.">
+          <div className="flex min-h-[52px] items-center justify-between px-4 py-2">
+            <span className="flex items-center gap-3 text-[15px]"><Bell size={18} strokeWidth={1.6} className="text-ink-500" /> Notifications</span>
+            {perm === 'granted' ? <span className="muted text-[14px]">On</span>
+              : perm === 'unsupported' ? <span className="muted text-[14px]">Not supported</span>
+              : perm === 'denied' ? <span className="muted text-[14px]">Blocked in browser</span>
+              : <button className="btn-link" onClick={async () => setPerm(await requestNotificationPermission())}>Turn on</button>}
+          </div>
+        </Group>
+
+        {/* List */}
+        <Group title="Our list">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className="shrink-0 text-[15px]">Name</span>
+            <input className="min-w-0 flex-1 bg-transparent text-right text-[15px] text-ink-600 focus:outline-none dark:text-[#B9B3BA]" maxLength={80} value={wsName} onChange={(e) => setWsName(e.target.value)}
+              onBlur={() => wsName.trim() && wsName !== workspace.name && updateWorkspace({ name: wsName.trim() }, 'Renamed')} aria-label="List name" />
+          </div>
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-[15px]">Currency</span>
+            <select className="bg-transparent text-right text-[15px] text-ink-600 focus:outline-none dark:text-[#B9B3BA]" value={workspace.currency} onChange={(e) => updateWorkspace({ currency: e.target.value }, 'Currency updated')} aria-label="Currency">{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select>
+          </div>
+          <div className="px-4 py-2">
+            <Toggle checked={workspace.share_enabled} onChange={(on) => updateWorkspace({ share_enabled: on }, on ? 'Share link is on' : 'Share link is off')}
+              label="Read-only share link" description="Anyone with the link can view the list — never surprises, gifts, notes or Secret Fantasy." />
+          </div>
           {workspace.share_enabled && (
-            <button className="flex w-full items-center gap-2 rounded-xl bg-rose-50 px-3 py-2.5 text-left text-sm dark:bg-rose-950/40" onClick={() => copy(shareUrl, 'Link copied')}>
-              <span className="min-w-0 flex-1 truncate font-mono text-xs">{shareUrl}</span><Copy size={16} />
+            <button className="flex w-full items-center gap-2 px-4 py-3 text-left" onClick={() => copy(shareUrl, 'Link copied')}>
+              <span className="muted min-w-0 flex-1 truncate font-mono text-[12px]">{shareUrl}</span><Copy size={15} strokeWidth={1.6} className="text-ink-500" />
             </button>
           )}
-        </section>
+        </Group>
 
-        {/* Demo tools */}
+        {/* Google Calendar */}
+        <Group title="Google Calendar" footer="Google Calendar → Settings → your calendar → Integrate calendar → copy “Secret address in iCal format”. Events show read-only on the Calendar.">
+          <div className="flex gap-2 px-4 py-3">
+            <input className="input py-2 text-[14px]" inputMode="url" placeholder="https://calendar.google.com/…/basic.ics" value={ical} onChange={(e) => setIcal(e.target.value)} aria-label="Google Calendar iCal address" />
+            <button className="btn-soft min-h-[42px] px-4" disabled={ical === (me.gcal_ical_url || '') || (ical && !/^https:\/\//.test(ical))} onClick={() => updateProfile({ gcal_ical_url: ical.trim() || null })}>Save</button>
+          </div>
+          {mode === 'local' && <p className="muted px-4 pb-3 text-[13px]">Available once Supabase is connected.</p>}
+        </Group>
+
         {mode === 'local' && (
-          <section className="card space-y-3 border-2 border-dashed border-gold-400 p-4">
-            <h2 className="section-title">🧪 Demo Mode</h2>
-            <p className="muted text-sm">Data lives in this browser. Switch partner to see the list from the other side — surprises and hidden gifts disappear!</p>
-            <button className="btn-soft w-full" onClick={() => switchDemoUser(DEMO_USERS.find((u) => u.id !== me.id).id)}>
-              <Repeat size={16} /> Switch to {DEMO_USERS.find((u) => u.id !== me.id).display_name}
+          <Group title="Demo mode" footer="Data lives in this browser. Switch partner to see the list from the other side — surprises, hidden gifts and private fantasies disappear.">
+            <button className="list-row" onClick={() => switchDemoUser(DEMO_USERS.find((u) => u.id !== me.id).id)}>
+              <Repeat size={18} strokeWidth={1.6} className="text-ink-500" />
+              <span className="flex-1 text-[15px]">Switch to {DEMO_USERS.find((u) => u.id !== me.id).display_name}</span>
             </button>
-            <button className="btn-ghost w-full text-red-600" onClick={() => setConfirmReset(true)}>Reset demo data</button>
-          </section>
+            <button className="list-row text-rose-700 dark:text-rose-300" onClick={() => setConfirmReset(true)}>
+              <span className="flex-1 pl-[30px] text-[15px]">Reset demo data</span>
+            </button>
+          </Group>
         )}
 
-        <button className="btn-ghost w-full" onClick={() => backend.signOut().catch((e) => toast(errMsg(e), 'error'))}><LogOut size={16} /> Sign out</button>
-        <p className="muted text-center text-xs">Made with 💕 · {mode === 'supabase' ? 'Synced with Supabase' : 'Demo Mode'}</p>
+        <button className="btn-ghost w-full" onClick={() => backend.signOut().catch((e) => toast(errMsg(e), 'error'))}><LogOut size={16} strokeWidth={1.6} /> Sign out</button>
       </div>
-      <ConfirmDialog open={confirmReset} title="Reset demo?" message="Deletes all demo data in this browser and starts fresh with the sample items." danger confirmLabel="Reset"
+      <ConfirmDialog open={confirmReset} title="Reset demo?" message="Deletes all demo data in this browser and starts fresh with the sample dreams." danger confirmLabel="Reset"
         onClose={() => setConfirmReset(false)} onConfirm={async () => { await backend.resetAll(); localStorage.removeItem('cbl:demoUser'); window.location.href = '/'; }} />
     </div>
+  );
+}
+
+function Group({ title, footer, children }) {
+  return (
+    <section>
+      <h2 className="section-title mb-2 px-1">{title}</h2>
+      <div className="list-group hairline">{children}</div>
+      {footer && <p className="muted mt-2 px-1 text-[13px] leading-snug">{footer}</p>}
+    </section>
   );
 }

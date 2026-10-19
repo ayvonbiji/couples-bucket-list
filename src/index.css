@@ -2,34 +2,61 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design system
+ *  - Surfaces are flat: hairline borders, no heavy shadows.
+ *  - Accent (rose) is reserved for the one primary action, active states and progress.
+ *  - Serif (Instrument Serif) only for page titles and a few hero numbers; everything else is Inter.
+ */
 @layer base {
-  html { -webkit-tap-highlight-color: transparent; }
+  html { -webkit-tap-highlight-color: transparent; text-rendering: optimizeLegibility; }
   body {
-    @apply bg-cream-50 text-ink-800 font-sans antialiased dark:bg-ink-950 dark:text-cream-100;
+    @apply bg-cream-50 font-sans text-[15px] leading-relaxed text-ink-800 antialiased dark:bg-ink-950 dark:text-cream-100;
     min-height: 100dvh;
+    font-feature-settings: 'cv11', 'ss01';
   }
-  h1, h2, h3 { @apply font-display tracking-tight; }
-  :focus-visible { @apply outline-none ring-2 ring-rose-500 ring-offset-2 ring-offset-cream-50 dark:ring-offset-ink-950; }
+  h1, h2, h3 { @apply font-sans font-semibold tracking-tight; }
+  :focus-visible { @apply outline-none ring-2 ring-rose-400/70 ring-offset-2 ring-offset-cream-50 dark:ring-offset-ink-950; }
   input[type='date'], input[type='datetime-local'] { min-height: 2.75rem; }
-  ::selection { @apply bg-rose-200 text-ink-900; }
+  ::selection { @apply bg-rose-100 text-ink-900; }
 }
 
 @layer components {
-  .card { @apply rounded-2xl bg-white shadow-soft ring-1 ring-rose-100/70 dark:bg-ink-800 dark:ring-white/5 dark:shadow-none; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition active:scale-[.97] disabled:opacity-50 disabled:pointer-events-none; }
-  .btn-primary { @apply btn bg-rose-600 text-white hover:bg-rose-700 shadow-sm; }
-  .btn-soft { @apply btn bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/50 dark:text-rose-200 dark:hover:bg-rose-900/60; }
-  .btn-ghost { @apply btn text-ink-700 hover:bg-black/5 dark:text-cream-100 dark:hover:bg-white/10; }
-  .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
-  .icon-btn { @apply inline-flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-black/5 active:scale-95 dark:hover:bg-white/10; }
-  .input { @apply w-full rounded-xl border border-rose-100 bg-white px-3 py-2.5 text-[15px] text-ink-800 placeholder:text-ink-700/40 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-200 dark:border-white/10 dark:bg-ink-900 dark:text-cream-100 dark:placeholder:text-cream-100/30 dark:focus:ring-rose-900; }
-  .label { @apply mb-1 block text-xs font-bold uppercase tracking-wide text-ink-700/70 dark:text-cream-100/60; }
-  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold; }
-  .chip-toggle { @apply chip cursor-pointer border border-rose-100 bg-white text-ink-700 transition dark:border-white/10 dark:bg-ink-900 dark:text-cream-100; }
-  .chip-toggle[aria-pressed='true'] { @apply border-rose-500 bg-rose-600 text-white; }
-  .section-title { @apply font-display text-lg font-bold text-ink-800 dark:text-cream-100; }
-  .muted { @apply text-ink-700/65 dark:text-cream-100/60; }
-  .err { @apply mt-1 text-xs font-semibold text-red-600 dark:text-red-400; }
+  /* Surfaces */
+  .card { @apply rounded-2xl border border-line bg-white dark:border-line-dark dark:bg-ink-900; }
+  .surface { @apply bg-white dark:bg-ink-900; }
+  .divider { @apply border-line dark:border-line-dark; }
+  .hairline { @apply divide-y divide-line dark:divide-line-dark; }
+
+  /* Type */
+  .title-serif { @apply font-display font-normal tracking-normal; }
+  .section-title { @apply text-[13px] font-semibold uppercase tracking-[0.08em] text-ink-500 dark:text-ink-500; }
+  .muted { @apply text-ink-500 dark:text-[#9C969D]; }
+  .label { @apply mb-1.5 block text-[13px] font-medium text-ink-600 dark:text-[#A9A3AA]; }
+  .err { @apply mt-1 text-[13px] font-medium text-rose-700 dark:text-rose-300; }
+
+  /* Buttons — comfortable 44px targets, restrained styling */
+  .btn { @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full px-5 text-[15px] font-medium transition duration-150 active:scale-[.98] disabled:pointer-events-none disabled:opacity-40; }
+  .btn-primary { @apply btn bg-rose-600 text-white hover:bg-rose-700; }
+  .btn-dark { @apply btn bg-ink-800 text-white hover:bg-ink-700 dark:bg-cream-100 dark:text-ink-900 dark:hover:bg-white; }
+  .btn-soft { @apply btn border border-line bg-white text-ink-800 hover:bg-cream-100 dark:border-line-dark dark:bg-ink-900 dark:text-cream-100 dark:hover:bg-ink-800; }
+  .btn-ghost { @apply btn text-ink-700 hover:bg-ink-800/5 dark:text-cream-100 dark:hover:bg-white/5; }
+  .btn-danger { @apply btn bg-rose-700 text-white hover:bg-rose-800; }
+  .btn-link { @apply inline-flex items-center gap-1 text-[14px] font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400; }
+  .icon-btn { @apply inline-flex h-10 w-10 items-center justify-center rounded-full text-ink-700 transition hover:bg-ink-800/5 active:scale-95 dark:text-cream-100 dark:hover:bg-white/5; }
+
+  /* Inputs */
+  .input { @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-[15px] text-ink-800 placeholder:text-ink-500/70 transition focus:border-ink-500/40 focus:outline-none focus:ring-4 focus:ring-ink-800/5 dark:border-line-dark dark:bg-ink-900 dark:text-cream-100 dark:placeholder:text-ink-500 dark:focus:ring-white/5; }
+
+  /* Chips */
+  .chip { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium; }
+  .chip-quiet { @apply chip bg-cream-100 text-ink-600 dark:bg-white/5 dark:text-[#B9B3BA]; }
+  .chip-toggle { @apply chip min-h-[34px] cursor-pointer border border-line bg-white px-3.5 text-[13px] text-ink-700 transition dark:border-line-dark dark:bg-ink-900 dark:text-cream-100; }
+  .chip-toggle[aria-pressed='true'] { @apply border-ink-800 bg-ink-800 text-white dark:border-cream-100 dark:bg-cream-100 dark:text-ink-900; }
+
+  /* List rows (iOS-style grouped list) */
+  .list-group { @apply overflow-hidden rounded-2xl border border-line bg-white dark:border-line-dark dark:bg-ink-900; }
+  .list-row { @apply flex min-h-[52px] w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-cream-50 dark:hover:bg-white/[.03]; }
 }
 
 @layer utilities {
@@ -38,8 +65,14 @@
   .no-scrollbar { scrollbar-width: none; }
 }
 
-/* Leaflet tiles in dark mode: soften so the map doesn't glare. */
-.dark .leaflet-tile-pane { filter: brightness(.75) contrast(1.1) saturate(.8); }
+/* Native <details> used for expandable sections */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] > summary .chev { transform: rotate(90deg); }
+
+/* Leaflet tiles: calmer, desaturated to match the palette. */
+.leaflet-tile-pane { filter: saturate(.55) contrast(.95); }
+.dark .leaflet-tile-pane { filter: saturate(.4) brightness(.7) contrast(1.1); }
 .leaflet-container { font-family: inherit; border-radius: 1rem; }
 
 @media (prefers-reduced-motion: reduce) {

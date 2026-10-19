@@ -21,17 +21,17 @@ export default function DeleteItemDialog({ ids, onClose, onDone }) {
   const parts = counts && Object.entries(counts).filter(([, n]) => n).map(([k, n]) => `${n} ${n === 1 ? k.replace(/s$/, '') : k}`);
 
   return (
-    <ConfirmDialog open title={title} danger confirmLabel="Move to Trash" onClose={onClose}
+    <ConfirmDialog open title={title} danger confirmLabel="Delete" onClose={onClose}
       onConfirm={async () => {
         const list = [...ids];
         await softDelete(list);
         onDone?.();
         toast(list.length > 1 ? `${list.length} items moved to Trash` : 'Moved to Trash', 'info', { label: 'Undo', onClick: () => restoreItems(list) });
       }}>
-      <p className="muted text-[15px]">It goes to <b>Trash</b> for {TRASH_DAYS} days, then disappears for good.</p>
+      <p className="muted text-[15px]">It moves to Recently deleted for {TRASH_DAYS} days, then disappears for good.</p>
       {parts?.length > 0 && (
-        <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-100">
-          ⚠️ This also removes its {parts.join(', ')} when permanently deleted.
+        <p className="mt-3 rounded-xl bg-cream-100 px-3.5 py-3 text-[14px] dark:bg-white/5">
+          This also removes its {parts.join(', ')} when permanently deleted.
         </p>
       )}
     </ConfirmDialog>

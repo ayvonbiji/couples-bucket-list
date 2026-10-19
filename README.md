@@ -1,6 +1,6 @@
-# 💞 Our Bucket List
+# Our Bucket List
 
-A warm, mobile-first web app for two people to dream, plan and remember together — one shared bucket list with voting, photo albums, secret gifts, important dates, a memory timeline and a calendar.
+A calm, private, mobile-first app for two people to dream, plan and remember together. It has one shared bucket list with voting, photo albums, secret gifts, important dates, a memory timeline, a calendar, and **Secret Fantasy**, a private space just for the two of you.
 
 **Stack:** React 18 · Vite · Tailwind CSS · Supabase (Auth, Postgres + Row Level Security, Storage, Realtime, one Edge Function) · Leaflet/OpenStreetMap · dnd-kit · jsPDF · JSZip
 
@@ -15,12 +15,16 @@ npm run dev
 
 Open http://localhost:5173 and choose **Continue as me**. Five sample items, two important dates and a hidden gift are seeded on first load. Everything is stored in your browser (localStorage + IndexedDB for photos).
 
-Demo Mode includes both partners: **Settings → Switch to My Love** shows the list from the other side, so you can see surprises and hidden gifts disappear.
+Demo Mode includes both partners. **More → Settings → Switch to My Love** shows the list from the other side, so you can see surprises, hidden gifts and private fantasies disappear.
 
 ## Real two-person setup (Supabase)
 
 1. **Create a project** at [supabase.com](https://supabase.com) (the free tier is fine).
-2. **Run the schema.** In the dashboard open **SQL Editor**, paste [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and run it. It creates every table, the RLS policies, the RPCs, the private `photos` and `backups` storage buckets, and realtime publication. It is safe to re-run.
+2. **Run the schema.** In the dashboard open **SQL Editor** and run these two files in order:
+   - [`0001_init.sql`](supabase/migrations/0001_init.sql) creates the tables, RLS policies, RPCs, the private `photos` and `backups` buckets, and realtime.
+   - [`0002_secret_fantasy.sql`](supabase/migrations/0002_secret_fantasy.sql) adds Secret Fantasy: its tables, consent rules and private `fantasy` bucket.
+
+   Both are additive and safe to re-run; they never modify or delete existing rows. If you already ran `0001`, run only `0002`.
    *With the Supabase CLI instead:* `supabase link --project-ref <ref>` then `supabase db push`.
 3. **Configure auth.** Go to **Authentication → URL Configuration**, set **Site URL** to where the app runs (e.g. `http://localhost:5173` or your production URL), and add it to **Redirect URLs**. Email magic links are enabled by default.
 4. **Add your keys.**
@@ -45,6 +49,48 @@ A workspace accepts at most two members. Each person can belong to only one work
 
 ---
 
+## Design
+
+The interface is deliberately quiet: warm off-white (`#FAF9F7`), charcoal text (`#252326`), muted grey (`#858087`), and a single muted-rose accent (`#C65D70`, blush `#F6E9EC`) used sparingly. Borders are hairlines (`#EAE6E5`) and there are no heavy shadows. Icons are thin line icons, with no emoji.
+
+- **Type:** body text is Inter; Instrument Serif appears only on page titles and a few hero numbers.
+- **Light and dark modes:** both are fully supported, set to Automatic, Light or Dark in Settings.
+- **Navigation:** Home · List · Calendar · Memories · More. Timeline, Surprise Me, Secret Fantasy, Important dates, Gift ideas, Map, Export, Recently deleted and Settings live under More.
+- **Progressive disclosure:**
+  - **Lists** show only the title, a category dot, the status, one date or place, and a thumbnail.
+  - **Detail pages** show every field, with the checklist, photos, notes, links and gift ideas in expandable sections.
+  - **The add form** shows the essentials first, then optional sections: When, Where, Budget, Who & privacy, and Tags/photos/checklist.
+
+## Secret Fantasy
+
+A discreet, journal-style private space for the two of you. It is kept entirely separate from the bucket list.
+
+- **Entries:** each has a title, private description, category, interest level (1–5), an optional image, personal notes, author and date. Status moves through Private, Shared, Discussing, Agreed and Completed.
+- **Privacy:**
+  - Every entry starts **private**, so only its author can see it. Sharing needs a confirmation, and the author can make it private again at any time.
+  - **Personal notes stay private to whoever wrote them**, even after sharing.
+- **Reactions:** your partner can respond with *Love this*, *Curious*, *Let's discuss* (which moves it to Discussing) or *Not comfortable*.
+- **Consent:** each of you has an explicit *"I'm comfortable with this"* switch, plus a boundaries note visible to both.
+  - **Agreed and Completed** become available only when **both** of you are comfortable and nobody has said *Not comfortable*.
+  - **Withdrawing** comfort, or reacting *Not comfortable*, automatically moves it back to Discussing and off the wishlist. Consent is never assumed.
+- **Shared wishlist:** you can add an entry once your partner has shown interest. It has an optional planned date, and either of you can remove it.
+- **Discussion:** each shared entry has a thread for talking it through.
+- **Device lock (optional):** you can set a PIN, stored as a salted hash on the device, and/or use Face ID, Touch ID or fingerprint via WebAuthn where supported.
+  - It auto-locks after a minute in the background, and there is a lock-now button.
+  - This lock is a convenience layer only. The real protection is in the database.
+
+**Security is enforced in Postgres, not the UI** (`0002_secret_fantasy.sql`):
+- **Row Level Security** sends private entries only to their author, sends personal notes only to their writer, and keeps outsiders out entirely.
+- **Triggers** enforce the rest:
+  - New entries must start private.
+  - Only the author can edit the content or make an entry private again.
+  - Agreed and Completed require consent from both partners.
+  - The wishlist requires mutual interest.
+  - Withdrawing consent automatically reverses Agreed and the wishlist.
+- **Images** go in a separate private `fantasy` bucket. They can be read only by people who can see the entry, and written only by its author.
+
+Fantasy data also never reaches search, the activity feed, notifications, calendars, exports, backups or the public share link. It loads only while the section is open, and is cleared from memory when you leave or lock it. These rules were tested against PostgreSQL with both partners and an outsider.
+
 ## Features
 
 | Area | What's included |
@@ -63,13 +109,15 @@ A workspace accepts at most two members. Each person can belong to only one work
 | **Delete** | From the detail page, swipe-left or long-press in the list, or bulk multi-select. Confirmation lists what's attached. Soft delete to **Trash** with Undo; restore or delete forever; auto-purge after 30 days |
 | **Export & backup** | Styled **PDF** with photos and memories, **CSV**, **JSON** (re-importable), **photo ZIP** (per item or everything). **Back up now** to cloud storage, automatic weekly backup, restore (merge or replace) from a cloud backup or a file. Optional **read-only share link** |
 | **Dashboard** | Stat cards, completion ring, status and category breakdown, Top Picks, upcoming plans with countdowns, upcoming important dates, reminders due, recent activity, year-in-review strip, partner snapshot, quick actions, motivational nudge |
-| **Polish** | Mobile-first, warm palette, dark mode (system/light/dark), reduced-motion support, keyboard focus rings, friendly empty states, installable (web manifest) |
+| **Secret Fantasy** | Private entries, confirmed sharing, partner reactions, explicit two-way consent, boundaries, shared wishlist, discussion, private notes, optional PIN/biometric lock. See above |
+| **Polish** | Mobile-first, minimal design system, light and dark modes, reduced-motion support, 44px touch targets, keyboard focus rings, friendly empty states, installable (web manifest) |
 
 ## Project structure
 
 ```
 supabase/
   migrations/0001_init.sql     Tables, RLS, RPCs, storage buckets, realtime
+  migrations/0002_secret_fantasy.sql  Secret Fantasy tables, RLS, consent triggers, private bucket
   functions/ical-proxy/        Edge Function: fetches Google Calendar iCal feeds (CORS)
 src/
   data/                        Backend layer — same interface for both modes
@@ -81,13 +129,18 @@ src/
   lib/                         Pure logic (unit-tested): scoring, visibility, recurrence, stats,
                                validation, export (PDF/CSV/JSON/ZIP + restore plan), ICS parser, image compression
   components/                  UI primitives, item views, photo album + lightbox, wishlist, filters, Surprise me…
-  pages/                       Dashboard, List, Map, Item detail/edit, Calendar, Timeline, Memories,
-                               Important dates, Gifts, Settings, Trash, Export, Share
+  pages/                       Home, List, Map, Item detail/edit, Calendar, Memories, More, Timeline,
+                               Surprise, Important dates, Gifts, Settings, Trash, Export, Share
+  fantasy/                     Secret Fantasy: lock (PIN/WebAuthn), its own data provider, list/detail/edit
 ```
+
+`supabase/migrations/0002_secret_fantasy.sql` holds the Secret Fantasy tables, RLS, consent triggers and private bucket.
 
 ## Database
 
 `users` · `workspaces` · `workspace_members` · `items` · `item_votes` · `item_reactions` · `comments` · `subtasks` · `item_links` · `item_photos` · `wishlist_entries` · `important_dates` · `journal_entries` · `backups` · plus a `memories` view (the legacy table merged into `journal_entries`).
+
+Secret Fantasy, from migration `0002`: `fantasies` · `fantasy_responses` (reaction, comfort, boundaries) · `fantasy_notes` (author-only) · `fantasy_comments`.
 
 **Privacy is enforced in the database, not just the UI.**
 - **Surprise items** (and their photos, votes and comments) are invisible to the partner until `revealed_at` is set or `reveal_date` passes.
@@ -106,7 +159,7 @@ select cron.schedule('purge-trash', '0 3 * * *', 'select public.purge_old_trash(
 ## Testing
 
 ```bash
-npm test        # unit tests for scoring, privacy rules, recurrence, filters, stats, ICS, validation
+npm test        # unit tests: scoring, privacy rules, Secret Fantasy consent rules, recurrence, filters, stats, ICS, validation
 npm run build   # production build
 ```
 

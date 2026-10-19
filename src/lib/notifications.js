@@ -43,8 +43,8 @@ export function fireDueNotifications(reminders) {
   const set = new Set(fired);
   for (const r of reminders.filter((x) => x.due && !set.has(x.key))) {
     try {
-      new Notification(r.kind === 'date' ? `💞 Coming up: ${r.title}` : `⏰ Reminder: ${r.title}`, {
-        body: r.kind === 'date' ? `On ${r.at}` : 'Time to make it happen!',
+      new Notification(r.kind === 'date' ? `Coming up: ${r.title}` : `Reminder: ${r.title}`, {
+        body: r.kind === 'date' ? `On ${r.at}` : 'Our Bucket List',
         icon: '/heart.svg',
         tag: r.key,
       });

@@ -7,7 +7,7 @@ import { useFileUrl, ConfirmDialog, StoredImage, Spinner } from './ui.jsx';
 import { cn } from '../lib/utils.js';
 
 /** target: { item_id } | { journal_entry_id }. coverId highlights the cover. */
-export default function PhotoAlbum({ target, coverId, canSetCover = true, title = 'Photo album' }) {
+export default function PhotoAlbum({ target, coverId, canSetCover = true, title = 'Photos', bare }) {
   const { data, uploadPhotos, updatePhoto, reorderPhotos, deletePhoto, setCover } = useApp();
   const photos = useMemo(() => data.item_photos
     .filter((p) => (target.item_id ? p.item_id === target.item_id : p.journal_entry_id === target.journal_entry_id))
@@ -34,40 +34,42 @@ export default function PhotoAlbum({ target, coverId, canSetCover = true, title 
   };
 
   return (
-    <section>
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="section-title">{title} <span className="muted text-sm font-normal">· {photos.length}</span></h2>
-        {photos.length > 0 && <button className="text-sm font-bold text-rose-600" onClick={() => setEditing(!editing)}>{editing ? 'Done' : 'Edit'}</button>}
-      </div>
+    <div>
+      {(!bare || photos.length > 0) && (
+        <div className="mb-2.5 flex items-center justify-between">
+          {bare ? <span /> : <h2 className="section-title">{title}</h2>}
+          {photos.length > 0 && <button className="btn-link text-[13px]" onClick={() => setEditing(!editing)}>{editing ? 'Done' : 'Arrange'}</button>}
+        </div>
+      )}
 
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-3 gap-1">
         {photos.map((p, k) => (
-          <div key={p.id} className="group relative aspect-square overflow-hidden rounded-xl bg-rose-50 dark:bg-white/5">
+          <div key={p.id} className="group relative aspect-square overflow-hidden rounded-lg bg-cream-100 dark:bg-white/5">
             <button className="h-full w-full" onClick={() => !editing && setLightbox(k)} aria-label={p.caption || `Photo ${k + 1}`}>
               <StoredImage path={p.storage_path} alt={p.caption || ''} className="h-full w-full" />
             </button>
-            {p.id === coverId && <span className="absolute left-1 top-1 chip bg-black/55 px-1.5 py-0.5 text-[10px] text-white"><Star size={10} className="fill-gold-400 text-gold-400" />Cover</span>}
-            {p.caption && !editing && <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/60 px-1.5 pb-1 pt-3 text-[10px] text-white">{p.caption}</span>}
+            {p.id === coverId && <span className="absolute left-1.5 top-1.5 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur">Cover</span>}
+            {p.caption && !editing && <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/50 px-2 pb-1.5 pt-4 text-[11px] text-white">{p.caption}</span>}
             {editing && (
-              <div className="absolute inset-0 flex flex-col justify-between bg-black/40 p-1">
+              <div className="absolute inset-0 flex flex-col justify-between bg-black/35 p-1.5">
                 <div className="flex justify-between">
                   <button className="rounded-full bg-white/90 p-1 text-ink-900" onClick={() => move(k, -1)} disabled={k === 0} aria-label="Move earlier"><ArrowLeft size={14} /></button>
                   <button className="rounded-full bg-white/90 p-1 text-ink-900" onClick={() => move(k, 1)} disabled={k === photos.length - 1} aria-label="Move later"><ArrowRight size={14} /></button>
                 </div>
                 <div className="flex justify-between">
                   {canSetCover && target.item_id ? <button className="rounded-full bg-white/90 p-1 text-ink-900" onClick={() => setCover(target.item_id, p.id)} aria-label="Set as cover"><Star size={14} /></button> : <span />}
-                  <button className="rounded-full bg-red-600 p-1 text-white" onClick={() => setConfirmDel(p)} aria-label="Delete photo"><Trash2 size={14} /></button>
+                  <button className="rounded-full bg-white/90 p-1 text-rose-700" onClick={() => setConfirmDel(p)} aria-label="Delete photo"><Trash2 size={14} /></button>
                 </div>
               </div>
             )}
           </div>
         ))}
-        <label className={cn('flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-rose-200 text-xs font-bold text-rose-600 dark:border-rose-900', progress && 'pointer-events-none opacity-70')}>
-          {progress ? <><Spinner /> {progress.done}/{progress.total}</> : <><ImagePlus size={22} /> Add photos</>}
+        <label className={cn('flex aspect-square cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-ink-500/30 text-[12px] text-ink-500 transition hover:bg-cream-100 dark:hover:bg-white/5', progress && 'pointer-events-none opacity-70')}>
+          {progress ? <><Spinner className="h-4 w-4" /> {progress.done}/{progress.total}</> : <><ImagePlus size={20} strokeWidth={1.5} /> Add</>}
           <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => { onFiles(e.target.files); e.target.value = ''; }} />
         </label>
       </div>
-      {editing && <p className="muted mt-1.5 text-xs">Use arrows to reorder · ★ sets the cover · open a photo to edit its caption.</p>}
+      {editing && <p className="muted mt-2 text-[12px]">Arrows reorder · star sets the cover · open a photo to caption it</p>}
 
       {lightbox !== null && photos[lightbox] && (
         <Lightbox photos={photos} index={lightbox} onIndex={setLightbox} onClose={() => setLightbox(null)}
@@ -76,7 +78,7 @@ export default function PhotoAlbum({ target, coverId, canSetCover = true, title 
       )}
       <ConfirmDialog open={!!confirmDel} title="Delete this photo?" message="It will be removed for both of you." danger confirmLabel="Delete"
         onClose={() => setConfirmDel(null)} onConfirm={async () => { await deletePhoto(confirmDel); setLightbox(null); }} />
-    </section>
+    </div>
   );
 }
 
@@ -108,10 +110,10 @@ export function Lightbox({ photos, index, onIndex, onClose, onCaption, onDelete 
         if (dx > 50) onIndex(Math.max(0, index - 1));
       }}>
       <div className="flex items-center justify-between p-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
-        <span className="text-sm opacity-80">{index + 1} / {photos.length}</span>
+        <span className="text-[13px] opacity-70">{index + 1} / {photos.length}</span>
         <div className="flex gap-1">
-          {onDelete && <button className="icon-btn hover:bg-white/10" onClick={() => onDelete(p)} aria-label="Delete photo"><Trash2 size={20} /></button>}
-          <button className="icon-btn hover:bg-white/10" onClick={onClose} aria-label="Close"><X size={22} /></button>
+          {onDelete && <button className="icon-btn text-white hover:bg-white/10" onClick={() => onDelete(p)} aria-label="Delete photo"><Trash2 size={20} /></button>}
+          <button className="icon-btn text-white hover:bg-white/10" onClick={onClose} aria-label="Close"><X size={22} /></button>
         </div>
       </div>
       <div className="relative flex min-h-0 flex-1 items-center justify-center">
@@ -122,8 +124,8 @@ export function Lightbox({ photos, index, onIndex, onClose, onCaption, onDelete 
       <div className="p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
         {onCaption && editCap ? (
           <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); onCaption(p, cap); setEditCap(false); }}>
-            <input autoFocus className="input bg-white/10 text-white" maxLength={300} value={cap} onChange={(e) => setCap(e.target.value)} placeholder="Write a caption…" />
-            <button className="btn-primary">Save</button>
+            <input autoFocus className="input border-white/15 bg-white/10 text-white placeholder:text-white/40" maxLength={300} value={cap} onChange={(e) => setCap(e.target.value)} placeholder="Write a caption" />
+            <button className="btn bg-white text-ink-900">Save</button>
           </form>
         ) : (
           <button className="flex w-full items-center justify-center gap-2 text-center text-[15px]" onClick={() => onCaption && setEditCap(true)} disabled={!onCaption}>

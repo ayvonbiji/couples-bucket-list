@@ -1,6 +1,6 @@
 // Supabase implementation of the backend interface (see backend.js for the contract).
 import { createClient } from '@supabase/supabase-js';
-import { DATA_TABLES } from './tables.js';
+import { DATA_TABLES, FANTASY_TABLES } from './tables.js';
 
 export function createSupabaseBackend(url, anonKey) {
   const sb = createClient(url, anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
@@ -81,6 +81,18 @@ export function createSupabaseBackend(url, anonKey) {
     /** Bulk insert for restores (keeps original authors; validated server-side). */
     async importRows(table, rows) {
       if (rows.length) check(await sb.rpc('import_rows', { p_table: table, p_rows: rows }));
+    },
+    /** Secret Fantasy: RLS returns only what this user may see (own private entries + shared ones). */
+    async loadFantasies(wsId) {
+      const results = await Promise.all(FANTASY_TABLES.map((t) => sb.from(t).select('*').eq('workspace_id', wsId)));
+      return Object.fromEntries(FANTASY_TABLES.map((t, i) => [t, check(results[i]) || []]));
+    },
+    subscribeFantasies(wsId, onChange) {
+      const ch = sb.channel(`fantasy-${wsId}`);
+      for (const t of ['fantasies', 'fantasy_responses', 'fantasy_comments'])
+        ch.on('postgres_changes', { event: '*', schema: 'public', table: t, filter: `workspace_id=eq.${wsId}` }, onChange);
+      ch.subscribe();
+      return () => sb.removeChannel(ch);
     },
     async dashboardSummary(wsId) {
       return check(await sb.rpc('dashboard_summary', { p_ws: wsId }));

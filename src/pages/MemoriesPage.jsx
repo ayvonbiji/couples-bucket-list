@@ -1,11 +1,12 @@
-// Memories gallery: completed items (and every photo from them).
+// Memories: completed dreams as a calm gallery, plus every photo.
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Images } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { useDecoratedItems } from '../lib/hooks.js';
-import { CATEGORY_META } from '../lib/constants.js';
 import { fmtDate, sortBy } from '../lib/utils.js';
-import { EmptyState, PageHeader, Segmented, Stars, StoredImage } from '../components/ui.jsx';
+import { EmptyState, PageHeader, SegmentedControl, StoredImage } from '../components/ui.jsx';
+import { CategoryPlaceholder } from '../components/icons.jsx';
 import { Lightbox } from '../components/PhotoAlbum.jsx';
 
 export default function MemoriesPage() {
@@ -23,37 +24,31 @@ export default function MemoriesPage() {
 
   return (
     <div>
-      <PageHeader title="Memories" subtitle={`${done.length} dreams come true · ${photos.length} photos`} />
-      <div className="space-y-4 px-4 pb-6">
-        <Segmented value={mode} onChange={setMode} options={[{ value: 'memories', label: '✨ Memories' }, { value: 'photos', label: '📸 All photos' }]} />
+      <PageHeader title="Memories" subtitle={`${done.length} dream${done.length === 1 ? '' : 's'} come true`} />
+      <div className="space-y-5 px-5 pb-10">
+        <SegmentedControl value={mode} onChange={setMode} options={[{ value: 'memories', label: 'Memories' }, { value: 'photos', label: `Photos${photos.length ? ` · ${photos.length}` : ''}` }]} />
 
         {done.length === 0 ? (
-          <EmptyState emoji="🌅" title="No memories yet" body="When you complete an item, it lands here with its photos and your journal note." action={<Link to="/list" className="btn-primary">Pick something to do</Link>} />
+          <EmptyState icon={Images} title="No memories yet" body="When you complete a dream, it lands here with its photos and your note." action={<Link to="/list" className="btn-soft">Choose something to do</Link>} />
         ) : mode === 'memories' ? (
-          <div className="columns-2 gap-3 [column-fill:_balance]">
-            {done.map((i) => {
-              const meta = CATEGORY_META[i.category] || CATEGORY_META.Other;
-              return (
-                <Link key={i.id} to={`/item/${i.id}`} className="card mb-3 block break-inside-avoid overflow-hidden animate-fade-up">
-                  <div style={{ background: `linear-gradient(135deg, ${meta.color}33, ${meta.color}10)` }}>
-                    <StoredImage path={i._cover} className="w-full" style={{ aspectRatio: '4 / 5' }} fallback={<div className="grid h-32 place-items-center text-5xl">{meta.emoji}</div>} />
-                  </div>
-                  <div className="p-3">
-                    <h3 className="font-sans text-[15px] font-bold leading-snug">{i.title}</h3>
-                    <p className="muted text-xs">{fmtDate(i.completed_at)}{i._photoCount ? ` · ${i._photoCount} 📸` : ''}</p>
-                    {i.would_do_again && <div className="mt-1"><Stars value={i.would_do_again} readOnly size={13} /></div>}
-                    {i.completion_note && <p className="mt-1.5 line-clamp-3 font-display text-sm italic">“{i.completion_note}”</p>}
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3">
+            {done.map((i) => (
+              <Link key={i.id} to={`/item/${i.id}`} className="group block animate-fade-up">
+                <div className="aspect-[4/5] overflow-hidden rounded-2xl bg-cream-100 dark:bg-ink-900">
+                  <StoredImage path={i._cover} className="h-full w-full transition duration-500 group-hover:scale-[1.03]" fallback={<CategoryPlaceholder category={i.category} size={28} />} />
+                </div>
+                <h3 className="mt-2.5 line-clamp-1 text-[15px] font-medium">{i.title}</h3>
+                <p className="muted text-[13px]">{fmtDate(i.completed_at, 'MMMM yyyy')}</p>
+                {i.completion_note && <p className="title-serif mt-1 line-clamp-2 text-[16px] italic leading-snug text-ink-700 dark:text-[#D4CFD5]">“{i.completion_note}”</p>}
+              </Link>
+            ))}
           </div>
         ) : photos.length === 0 ? (
-          <EmptyState emoji="📷" title="No photos yet" body="Add photos to a completed item's album." />
+          <EmptyState icon={Images} title="No photos yet" body="Add photos to a completed dream to see them here." />
         ) : (
           <div className="grid grid-cols-3 gap-1">
             {photos.map((p, k) => (
-              <button key={p.id} className="aspect-square overflow-hidden rounded-lg" onClick={() => setViewer(k)}>
+              <button key={p.id} className="aspect-square overflow-hidden rounded-md" onClick={() => setViewer(k)} aria-label={p.caption || `Photo ${k + 1}`}>
                 <StoredImage path={p.storage_path} alt={p.caption || ''} className="h-full w-full" />
               </button>
             ))}

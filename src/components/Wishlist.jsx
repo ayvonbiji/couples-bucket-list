@@ -1,7 +1,7 @@
 // Gift / gear ideas. Hidden gifts stay invisible to the partner until their reveal date
 // (enforced by RLS in Supabase and by visibility.js in Demo Mode).
 import { useState } from 'react';
-import { Check, EyeOff, ExternalLink, Gift, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Check, EyeOff, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { validateGift, toNum } from '../lib/validation.js';
 import { CURRENCIES } from '../lib/constants.js';
@@ -32,8 +32,8 @@ export function GiftForm({ open, onClose, itemId = null, initial }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={initial ? 'Edit gift idea' : 'New gift idea 🎁'}
-      footer={<><button className="btn-ghost flex-1" onClick={onClose}>Cancel</button><button className="btn-primary flex-1" onClick={save} disabled={busy}>{busy ? <Spinner className="h-4 w-4" /> : 'Save'}</button></>}>
+    <Modal open={open} onClose={onClose} title={initial ? 'Edit gift idea' : 'New gift idea'}
+      footer={<><button className="btn-ghost flex-1" onClick={onClose}>Cancel</button><button className="btn-dark flex-1" onClick={save} disabled={busy}>{busy ? <Spinner className="h-4 w-4" /> : 'Save'}</button></>}>
       <div className="space-y-4">
         <Field label="Gift *" error={errors.name}><input className="input" maxLength={140} placeholder="Hiking boots for the trek" value={v.name} onChange={(e) => set({ name: e.target.value })} /></Field>
         <Field label="Link" error={errors.url}><input className="input" type="url" inputMode="url" placeholder="https://…" value={v.url || ''} onChange={(e) => set({ url: e.target.value })} /></Field>
@@ -55,7 +55,7 @@ export function GiftForm({ open, onClose, itemId = null, initial }) {
           </Field>
         )}
         <Field label="Notes"><textarea className="input" rows={2} value={v.notes || ''} onChange={(e) => set({ notes: e.target.value })} /></Field>
-        <Toggle checked={v.is_hidden} onChange={(is_hidden) => set({ is_hidden })} label="🤫 Hide from partner" description="They won't see it until the reveal date" />
+        <Toggle checked={v.is_hidden} onChange={(is_hidden) => set({ is_hidden })} label="Hide from partner" description="They won't see it until the reveal date" />
         {v.is_hidden && (
           <Field label="Reveal on" error={errors.reveal_date} hint="e.g. their birthday or your anniversary">
             <input type="date" className="input" min={todayISO()} value={v.reveal_date || ''} onChange={(e) => set({ reveal_date: e.target.value })} />
@@ -74,43 +74,44 @@ export function GiftRow({ g, showItem }) {
   const stillHidden = g.is_hidden && g.reveal_date && g.reveal_date > todayISO();
   const item = showItem && g.item_id ? data.items.find((i) => i.id === g.item_id) : null;
   return (
-    <li className={cn('flex items-start gap-3 rounded-xl bg-white p-3 dark:bg-ink-800', g.is_gifted && 'opacity-60')}>
+    <li className={cn('flex items-start gap-3 py-3', g.is_gifted && 'opacity-60')}>
       <button onClick={() => updateGift(g.id, { is_gifted: !g.is_gifted, gifted_at: g.is_gifted ? null : new Date().toISOString() })}
-        className={cn('mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border-2', g.is_gifted ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-ink-700/30')}
-        aria-label={g.is_gifted ? 'Mark as not gifted' : 'Mark as gifted'}>{g.is_gifted && <Check size={14} strokeWidth={3} />}</button>
+        className={cn('mt-0.5 grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-[1.5px] transition', g.is_gifted ? 'border-ink-500 bg-ink-500 text-white' : 'border-ink-500/40')}
+        aria-label={g.is_gifted ? 'Mark as not gifted' : 'Mark as gifted'}>{g.is_gifted && <Check size={12} strokeWidth={2.5} />}</button>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={cn('font-bold', g.is_gifted && 'line-through')}>{g.name}</span>
-          {g.price ? <span className="muted text-sm">{fmtMoney(g.price, g.currency)}</span> : null}
-          {stillHidden && mine && <span className="chip bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200"><EyeOff size={11} /> Hidden · reveals {countdownLabel(g.reveal_date)}</span>}
-          {g.is_gifted && <span className="chip bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Gifted</span>}
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <span className={cn('text-[15px] font-medium', g.is_gifted && 'line-through')}>{g.name}</span>
+          {g.price ? <span className="muted text-[14px]">{fmtMoney(g.price, g.currency)}</span> : null}
         </div>
-        <p className="muted text-xs">For {personLabel(g.for_user_id, { both: 'either of us' })} · from {personLabel(g.created_by)}{item ? ` · for “${item.title}”` : ''}{g.reveal_date && !stillHidden && g.is_hidden ? ` · revealed ${fmtDate(g.reveal_date, 'd MMM')}` : ''}</p>
-        {g.notes && <p className="mt-1 text-sm">{g.notes}</p>}
-        {g.url && <a href={g.url} target="_blank" rel="noreferrer noopener" className="mt-1 inline-flex items-center gap-1 text-sm font-bold text-rose-600"><ExternalLink size={13} /> View link</a>}
+        <p className="muted text-[13px]">
+          For {personLabel(g.for_user_id, { both: 'either of us' })} · from {personLabel(g.created_by)}{item ? ` · ${item.title}` : ''}
+          {stillHidden && mine && <span className="ml-1 inline-flex items-center gap-1"> · <EyeOff size={11} strokeWidth={1.75} /> hidden, reveals {countdownLabel(g.reveal_date)}</span>}
+          {g.reveal_date && !stillHidden && g.is_hidden ? ` · revealed ${fmtDate(g.reveal_date, 'd MMM')}` : ''}
+          {g.is_gifted ? ' · gifted' : ''}
+        </p>
+        {g.notes && <p className="mt-1 text-[14px] text-ink-700 dark:text-[#D4CFD5]">{g.notes}</p>}
+        {g.url && <a href={g.url} target="_blank" rel="noreferrer noopener" className="btn-link mt-1 text-[13px]"><ExternalLink size={12} strokeWidth={1.75} /> View link</a>}
       </div>
-      {mine && <button className="icon-btn h-8 w-8" onClick={() => setEdit(true)} aria-label="Edit gift"><Pencil size={15} /></button>}
-      <button className="icon-btn h-8 w-8" onClick={() => setDel(true)} aria-label="Delete gift"><Trash2 size={15} /></button>
+      {mine && <button className="icon-btn h-9 w-9" onClick={() => setEdit(true)} aria-label="Edit gift"><Pencil size={15} strokeWidth={1.6} /></button>}
+      <button className="icon-btn h-9 w-9" onClick={() => setDel(true)} aria-label="Delete gift"><Trash2 size={15} strokeWidth={1.6} /></button>
       {edit && <GiftForm open initial={g} itemId={g.item_id} onClose={() => setEdit(false)} />}
       <ConfirmDialog open={del} title="Remove this gift idea?" danger confirmLabel="Remove" onClose={() => setDel(false)} onConfirm={() => deleteGift(g.id)} />
     </li>
   );
 }
 
-/** Wishlist block on an item's detail page. */
-export default function ItemWishlist({ itemId }) {
+/** Wishlist block on an item's detail page (`bare` = inside an expandable section). */
+export default function ItemWishlist({ itemId, bare }) {
   const { data } = useApp();
   const [adding, setAdding] = useState(false);
   const gifts = data.wishlist_entries.filter((g) => g.item_id === itemId);
   return (
-    <section>
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="section-title flex items-center gap-2"><Gift size={18} className="text-rose-600" /> Gift & gear ideas</h2>
-        <button className="btn-soft px-3 py-1.5" onClick={() => setAdding(true)}><Plus size={15} /> Add</button>
-      </div>
-      {gifts.length ? <ul className="space-y-2">{gifts.map((g) => <GiftRow key={g.id} g={g} />)}</ul>
-        : <p className="muted text-sm">Things you'll need or want to gift each other for this — hide them for a surprise.</p>}
+    <div>
+      {!bare && <h2 className="section-title mb-2">Gift & gear ideas</h2>}
+      {gifts.length ? <ul className="hairline -mt-3">{gifts.map((g) => <GiftRow key={g.id} g={g} />)}</ul>
+        : <p className="muted text-[14px]">Things you’ll need, or want to gift each other for this. Hide them to keep a surprise.</p>}
+      <button className="btn-link mt-3" onClick={() => setAdding(true)}><Plus size={15} strokeWidth={1.75} /> Add an idea</button>
       {adding && <GiftForm open itemId={itemId} onClose={() => setAdding(false)} />}
-    </section>
+    </div>
   );
 }

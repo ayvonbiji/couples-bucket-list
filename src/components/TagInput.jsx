@@ -19,8 +19,8 @@ export default function TagInput({ value = [], onChange }) {
     <div>
       <div className="input flex min-h-[2.75rem] flex-wrap items-center gap-1.5 py-1.5">
         {value.map((t) => (
-          <span key={t} className="chip bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200">
-            #{t}
+          <span key={t} className="chip-quiet">
+            {t}
             <button type="button" onClick={() => onChange(value.filter((x) => x !== t))} aria-label={`Remove ${t}`}><X size={12} /></button>
           </span>
         ))}
@@ -34,7 +34,7 @@ export default function TagInput({ value = [], onChange }) {
       </div>
       {suggestions.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
-          {suggestions.map((t) => <button key={t} type="button" className="chip bg-black/5 text-ink-700 dark:bg-white/10 dark:text-cream-100" onClick={() => add(t)}>+ {t}</button>)}
+          {suggestions.map((t) => <button key={t} type="button" className="chip border border-line text-ink-500 dark:border-line-dark" onClick={() => add(t)}>+ {t}</button>)}
         </div>
       )}
     </div>

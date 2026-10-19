@@ -30,8 +30,23 @@ export const DEFAULTS = {
   backups: { kind: 'manual', format: 'json', storage_path: null, size_bytes: null, item_count: null },
 };
 
+// Secret Fantasy tables are deliberately NOT in DATA_TABLES: they are never part of the
+// normal workspace load, exports, backups, search or the activity feed.
+export const FANTASY_TABLES = ['fantasies', 'fantasy_responses', 'fantasy_notes', 'fantasy_comments'];
+
+export const FANTASY_DEFAULTS = {
+  fantasies: { description: null, category: 'Romance', interest_level: null, status: 'private', on_wishlist: false, planned_date: null, completed_at: null, image_path: null, shared_at: null },
+  fantasy_responses: { reaction: null, comfortable: false, boundaries: null },
+  fantasy_notes: { notes: null },
+  fantasy_comments: {},
+};
+
 // Tables whose primary key is not `id`.
-export const COMPOSITE_KEYS = { item_votes: ['item_id', 'user_id'] };
+export const COMPOSITE_KEYS = {
+  item_votes: ['item_id', 'user_id'],
+  fantasy_responses: ['fantasy_id', 'user_id'],
+  fantasy_notes: ['fantasy_id', 'user_id'],
+};
 
 // Child tables that cascade when an item is permanently deleted.
 export const ITEM_CHILDREN = ['item_votes', 'item_reactions', 'comments', 'subtasks', 'item_links', 'item_photos', 'wishlist_entries', 'journal_entries'];

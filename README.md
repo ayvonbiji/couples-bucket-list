@@ -26,7 +26,12 @@ To see the list from the other side, open http://localhost:5173/#key=aksa. That 
 ## Real two-person setup (Supabase)
 
 1. **Create a project** at [supabase.com](https://supabase.com) (the free tier is fine).
-2. **Run the schema.** In the dashboard open **SQL Editor** and run these files in order:
+2. **Easiest: run one file.** Open [`supabase/setup_all.sql`](supabase/setup_all.sql) and change `https://YOUR-SITE.vercel.app` to your site's address. Paste the whole file into **SQL Editor** and press **Run**.
+   - It creates or updates every table and privacy rule, keeping any existing data.
+   - It creates or updates the two accounts and links them to one shared list.
+   - The results show **your two personal links**.
+
+   You can skip steps 5 and the setup script below. To do it in pieces instead, run these files in order:
    - [`0001_init.sql`](supabase/migrations/0001_init.sql): tables, RLS policies, RPCs, the private `photos` and `backups` buckets, realtime.
    - [`0002_secret_fantasy.sql`](supabase/migrations/0002_secret_fantasy.sql): Secret Fantasy tables, consent rules and the private `fantasy` bucket.
    - [`0003_upgrade.sql`](supabase/migrations/0003_upgrade.sql): usernames, editable categories, the new item fields and statuses, Secret Fantasy v2 (visibility, statuses, photos, "hide from my list").
@@ -45,7 +50,7 @@ To see the list from the other side, open http://localhost:5173/#key=aksa. That 
    # VITE_SUPABASE_URL=https://xxxx.supabase.co
    # VITE_SUPABASE_ANON_KEY=eyJ...
    ```
-5. **Create the two accounts and personal links** (see below).
+5. **Create the two accounts and personal links.** `setup_all.sql` already did this. Otherwise run [`supabase/accounts.sql`](supabase/accounts.sql) in the SQL Editor, or use the script below.
 6. *(Optional)* **Enable Google Calendar sync** by deploying the iCal proxy: `supabase functions deploy ical-proxy`.
 7. **Deploy** (see *Deploying* below). Both phones must open the **same deployed address**, and that build must have the two `VITE_SUPABASE_*` settings.
 
@@ -66,7 +71,7 @@ SPA rewrites are included (`vercel.json`, `public/_redirects`). **Never** put th
 
 The app has no login page. Each of you opens a **personal link** once on your own phone. That signs the phone in, and from then on the app always opens straight to Home as you. Each new dream records who created it (you choose Ayvon or Aksa in the form).
 
-Create the accounts and links with the setup script, **on your own computer**. It needs the project's **service-role key**, which must never go in `.env.local`, a `VITE_` variable or the repo:
+The simplest way to create the accounts and links is `setup_all.sql` or `accounts.sql` in the SQL Editor (above): no terminal and no keys to copy. Run either again to replace both links. Alternatively, use the setup script **on your own computer**. It needs the project's **service-role key**, which must never go in `.env.local`, a `VITE_` variable or the repo:
 
 ```bash
 SUPABASE_SERVICE_ROLE_KEY=eyJ...  npm run setup-accounts

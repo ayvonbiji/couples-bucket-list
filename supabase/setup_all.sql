@@ -1254,4 +1254,4 @@ revoke all on function bucket_setup.make_links(text) from public;
 -- ▼▼ Put your site address here (e.g. https://our-bucket-list.vercel.app) ▼▼
 -- Your two links appear in the results below. Open each once on its owner's phone; treat them like passwords.
 -- (If you forget to change it, put your real address in front of the "/#key=…" part of each link.)
-select * from bucket_setup.make_links('https://YOUR-SITE.vercel.app');
+select * from bucket_setup.make_links('https://couples-bucket-list.vercel.app');

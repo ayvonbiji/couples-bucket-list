@@ -5,17 +5,26 @@ import { Images } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { useDecoratedItems } from '../lib/hooks.js';
 import { fmtDate, sortBy } from '../lib/utils.js';
-import { EmptyState, PageHeader, SegmentedControl, StoredImage } from '../components/ui.jsx';
+import { EmptyState, PageHeader, SegmentedControl, Stars, StoredImage } from '../components/ui.jsx';
 import { CategoryPlaceholder } from '../components/icons.jsx';
 import { Lightbox } from '../components/PhotoAlbum.jsx';
 
 export default function MemoriesPage() {
-  const { data } = useApp();
+  const { data, me, partner, categories } = useApp();
+  const [year, setYear] = useState('all');
+  const [cat, setCat] = useState('all');
+  const [person, setPerson] = useState('any');
   const all = useDecoratedItems();
   const [mode, setMode] = useState('memories');
   const [viewer, setViewer] = useState(null);
 
-  const done = useMemo(() => sortBy(all.filter((i) => i.status === 'Completed'), (i) => i.completed_at || '', -1), [all]);
+  const allDone = useMemo(() => sortBy(all.filter((i) => i.status === 'Completed'), (i) => i.completed_at || '', -1), [all]);
+  const years = [...new Set(allDone.map((i) => (i.completed_at || '').slice(0, 4)).filter(Boolean))].sort().reverse();
+  // Partner filter: whose dream it was (owner), "both" dreams always included.
+  const done = useMemo(() => allDone.filter((i) =>
+    (year === 'all' || (i.completed_at || '').startsWith(year)) &&
+    (cat === 'all' || i.category === cat) &&
+    (person === 'any' || !i.owner_user_id || i.owner_user_id === (person === 'me' ? me.id : partner?.id))), [allDone, year, cat, person, me.id, partner?.id]);
   const photos = useMemo(() => {
     const ids = new Set(done.map((i) => i.id));
     const manual = new Set(data.journal_entries.filter((j) => !j.item_id).map((j) => j.id));
@@ -28,7 +37,22 @@ export default function MemoriesPage() {
       <div className="space-y-5 px-5 pb-10">
         <SegmentedControl value={mode} onChange={setMode} options={[{ value: 'memories', label: 'Memories' }, { value: 'photos', label: `Photos${photos.length ? ` · ${photos.length}` : ''}` }]} />
 
-        {done.length === 0 ? (
+        {allDone.length > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            <select className="input py-2 text-[14px]" value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year">
+              <option value="all">All years</option>{years.map((y) => <option key={y}>{y}</option>)}
+            </select>
+            <select className="input py-2 text-[14px]" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
+              <option value="all">All categories</option>{categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
+            <select className="input py-2 text-[14px]" value={person} onChange={(e) => setPerson(e.target.value)} aria-label="Partner">
+              <option value="any">Both of us</option><option value="me">Mine</option>{partner && <option value="partner">{partner.display_name}’s</option>}
+            </select>
+          </div>
+        )}
+        {allDone.length > 0 && done.length === 0 ? (
+          <EmptyState icon={Images} title="No memories match" body="Try another year, category or partner." />
+        ) : done.length === 0 ? (
           <EmptyState icon={Images} title="No memories yet" body="When you complete a dream, it lands here with its photos and your note." action={<Link to="/list" className="btn-soft">Choose something to do</Link>} />
         ) : mode === 'memories' ? (
           <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3">
@@ -40,6 +64,11 @@ export default function MemoriesPage() {
                 <h3 className="mt-2.5 line-clamp-1 text-[15px] font-medium">{i.title}</h3>
                 <p className="muted text-[13px]">{fmtDate(i.completed_at, 'MMMM yyyy')}</p>
                 {i.completion_note && <p className="title-serif mt-1 line-clamp-2 text-[16px] italic leading-snug text-ink-700 dark:text-[#D4CFD5]">“{i.completion_note}”</p>}
+                <p className="muted mt-1 flex flex-wrap items-center gap-x-2 text-[12px]">
+                  {i.location_name && <span className="truncate">{i.location_name}</span>}
+                  {(i.satisfaction || i.would_do_again) && <Stars value={i.satisfaction || i.would_do_again} readOnly size={11} />}
+                </p>
+                {i.favourite_memory && <p className="muted mt-0.5 line-clamp-2 text-[12px]">Favourite: {i.favourite_memory}</p>}
               </Link>
             ))}
           </div>

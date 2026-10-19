@@ -1,16 +1,16 @@
 // Home: a calm summary. Essentials first; insights tucked into expandable sections.
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Activity, Bell, CalendarDays, CalendarPlus, ChevronRight, Dices, Gift, PieChart, Plus, UserPlus } from 'lucide-react';
+import { Activity, Bell, CalendarDays, CalendarPlus, ChevronRight, Dices, Gift, Lock, PieChart, Plus, UserPlus } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { useDecoratedItems } from '../lib/hooks.js';
 import { activityFeed, partnerSnapshot, summary, topPicks, upcomingItems, yearInReview } from '../lib/stats.js';
 import { occurrenceTitle, upcomingDates } from '../lib/recurrence.js';
-import { CATEGORIES, CATEGORY_META, STATUSES, STATUS_META } from '../lib/constants.js';
+import { STATUSES, STATUS_META, categoryColor } from '../lib/constants.js';
 import { countdownLabel, fmtDate, fmtMoney, timeAgo } from '../lib/utils.js';
 import { Avatar, Disclosure, EmptyState, ProgressBar, StoredImage } from '../components/ui.jsx';
 import { ItemCard } from '../components/ItemViews.jsx';
-import { DateKindIcon } from '../components/icons.jsx';
+import { CategoryPlaceholder, DateKindIcon } from '../components/icons.jsx';
 
 export default function DashboardPage() {
   const { me, partner, workspace, data, reminders, personLabel } = useApp();
@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const yir = useMemo(() => yearInReview({ ...data, items }), [data, items]);
   const revealedGifts = data.wishlist_entries.filter((g) => g.for_user_id === me.id && g.created_by !== me.id && !g.is_gifted).length;
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const recent = useMemo(() => items.filter((i) => i.status === 'Completed' && i.completed_at).sort((a, b) => b.completed_at.localeCompare(a.completed_at)).slice(0, 3), [items]);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
@@ -62,22 +63,22 @@ export default function DashboardPage() {
           </div>
           <ProgressBar value={s.completed} max={s.total || 1} className="mt-3" />
         </div>
-        <div className="grid grid-cols-3 divide-x divide-line border-t border-line dark:divide-line-dark dark:border-line-dark">
-          {[['Dreams', s.total, '/list'], ['Completed', s.completed, '/memories'], ['Upcoming', upcomingCount, '/calendar']].map(([l, v, to]) => (
-            <Link key={l} to={to} className="px-4 py-3 transition hover:bg-cream-50 dark:hover:bg-white/[.03]">
-              <div className="title-serif text-[28px] leading-none">{v}</div>
-              <div className="muted mt-1 text-[13px]">{l}</div>
+        <div className="grid grid-cols-4 divide-x divide-line border-t border-line dark:divide-line-dark dark:border-line-dark">
+          {[['Dreams', s.total, '/list'], ['Done', s.completed, '/memories'], ['Doing', s.byStatus['In Progress'], '/list?status=In%20Progress'], ['Upcoming', upcomingCount, '/calendar']].map(([l, v, to]) => (
+            <Link key={l} to={to} className="px-3 py-3 transition hover:bg-cream-50 dark:hover:bg-white/[.03]">
+              <div className="title-serif text-[26px] leading-none">{v}</div>
+              <div className="muted mt-1 text-[12px]">{l}</div>
             </Link>
           ))}
         </div>
         <p className="muted border-t border-line px-4 py-2.5 text-[13px] dark:border-line-dark">
-          {s.byStatus['In Progress']} in progress · {s.byStatus.Planned} planned · {s.byStatus.Idea} ideas · {s.completedThisYear} done this year
+          {s.byStatus.Planned} planned · {s.byStatus.Idea} ideas{s.byStatus['On Hold'] ? ` · ${s.byStatus['On Hold']} on hold` : ''} · {s.completedThisYear} done this year
         </p>
       </section>
 
       {/* One primary action, quiet secondary ones */}
       <section>
-        <button className="btn-primary w-full" onClick={() => nav('/item/new')}><Plus size={18} strokeWidth={1.75} /> New dream</button>
+        <button className="btn-primary w-full" onClick={() => nav('/item/new')}><Plus size={18} strokeWidth={1.75} /> Add a dream</button>
         <div className="mt-3 grid grid-cols-3 text-[13px]">
           {[[Dices, 'Surprise me', '/surprise'], [CalendarDays, 'Calendar', '/calendar'], [CalendarPlus, 'Add date', '/dates?new=1']].map(([Icon, l, to]) => (
             <Link key={l} to={to} className="flex min-h-[44px] items-center justify-center gap-1.5 text-ink-600 transition hover:text-ink-800 dark:text-[#B9B3BA] dark:hover:text-cream-100">
@@ -153,6 +154,33 @@ export default function DashboardPage() {
         )}
       </section>
 
+      {/* Recently completed */}
+      {recent.length > 0 && (
+        <section>
+          <SectionHead title="Recently completed" to="/memories" />
+          <ul className="list-group hairline">
+            {recent.map((i) => (
+              <li key={i.id}>
+                <Link to={`/item/${i.id}`} className="list-row">
+                  <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg"><StoredImage path={i._cover} className="h-full w-full" fallback={<CategoryPlaceholder category={i.category} size={15} />} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px]">{i.title}</span>
+                    <span className="muted block truncate text-[13px]">{fmtDate(i.completed_at, 'd MMM yyyy')}{i.favourite_memory ? ` · ${i.favourite_memory}` : ''}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Secret Fantasy — a discreet entry point only; nothing private is summarised here */}
+      <Link to="/fantasy" className="list-group list-row">
+        <Lock size={17} strokeWidth={1.6} className="text-rose-500" />
+        <span className="flex-1 text-[15px]">Secret Fantasy</span>
+        <ChevronRight size={16} className="text-ink-500" />
+      </Link>
+
       {/* Top picks */}
       {picks.length > 0 && (
         <section>
@@ -180,10 +208,10 @@ export default function DashboardPage() {
               {STATUSES.map((st) => s.byStatus[st] > 0 && <div key={st} style={{ width: `${(s.byStatus[st] / s.total) * 100}%`, background: STATUS_META[st].color }} />)}
             </div>
             <div className="space-y-3">
-              {CATEGORIES.filter((c) => s.byCategory[c].total).map((c) => (
+              {Object.keys(s.byCategory).sort().map((c) => (
                 <div key={c}>
                   <div className="mb-1.5 flex justify-between text-[14px]">
-                    <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full" style={{ background: CATEGORY_META[c].color }} />{c}</span>
+                    <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full" style={{ background: categoryColor(c) }} />{c}</span>
                     <span className="muted">{s.byCategory[c].done} of {s.byCategory[c].total}</span>
                   </div>
                   <ProgressBar value={s.byCategory[c].done} max={s.byCategory[c].total} color="bg-ink-500/60" />

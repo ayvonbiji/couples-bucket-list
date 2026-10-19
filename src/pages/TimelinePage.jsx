@@ -5,14 +5,14 @@ import { BookOpen, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { yearInReview } from '../lib/stats.js';
 import { validateJournal, toNum } from '../lib/validation.js';
-import { CATEGORIES, CATEGORY_META, IMPORTANT_DATE_COLOR } from '../lib/constants.js';
+import { IMPORTANT_DATE_COLOR, categoryColor } from '../lib/constants.js';
 import { cn, fmtDate, fmtMoney, todayISO } from '../lib/utils.js';
 import { ConfirmDialog, EmptyState, Field, Modal, PageHeader, Segmented, Spinner, Stars, StoredImage } from '../components/ui.jsx';
 import PhotoAlbum, { Lightbox } from '../components/PhotoAlbum.jsx';
 import TagInput from '../components/TagInput.jsx';
 
 export default function TimelinePage() {
-  const { data, me, partner, workspace, items } = useApp();
+  const { data, me, partner, workspace, items, categories } = useApp();
   const [year, setYear] = useState('all');
   const [cat, setCat] = useState('all');
   const [person, setPerson] = useState('any');
@@ -75,7 +75,7 @@ export default function TimelinePage() {
           <div className="grid grid-cols-2 gap-2">
             <select className="input py-2 text-[14px]" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
               <option value="all">All categories</option>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
             <select className="input py-2 text-[14px]" value={person} onChange={(e) => setPerson(e.target.value)} aria-label="Person">
               <option value="any">Both of us</option>
@@ -107,8 +107,7 @@ export default function TimelinePage() {
 const photosFor = (photos, j) => photos.filter((p) => (j.item_id ? p.item_id === j.item_id : p.journal_entry_id === j.id)).sort((a, b) => a.position - b.position);
 
 function Entry({ e, onEdit, onPhoto }) {
-  const meta = e.category ? CATEGORY_META[e.category] : null;
-  const dot = e.kind === 'milestone' ? IMPORTANT_DATE_COLOR : meta?.color || '#C65D70';
+  const dot = e.kind === 'milestone' ? IMPORTANT_DATE_COLOR : e.category ? categoryColor(e.category) : '#C65D70';
   const kindLabel = e.kind === 'milestone' ? 'Milestone' : e.kind === 'manual' ? 'Journal' : e.category;
   return (
     <li className="relative mb-7 ml-5 animate-fade-up">
@@ -145,7 +144,7 @@ function Entry({ e, onEdit, onPhoto }) {
 
 /** Create / edit a manual journal entry (with its own photo album when editing). */
 function JournalForm({ entry, onClose }) {
-  const { addJournal, updateJournal, deleteJournal } = useApp();
+  const { addJournal, updateJournal, deleteJournal, categories } = useApp();
   const [v, setV] = useState(entry ? { ...entry } : { title: '', entry_date: todayISO(), note: '', rating: 0, category: '', location_name: '', tags: [] });
   const [files, setFiles] = useState([]);
   const [errors, setErrors] = useState({});
@@ -176,7 +175,7 @@ function JournalForm({ entry, onClose }) {
         <Field label="Date" error={errors.entry_date}><input type="date" className="input" value={v.entry_date} onChange={(e) => set({ entry_date: e.target.value })} /></Field>
         <Field label="What happened"><textarea className="input min-h-[110px]" value={v.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
         <div><span className="label">Rating</span><Stars value={v.rating} onChange={(rating) => set({ rating })} size={22} /></div>
-        <div><span className="label">Category</span><Segmented value={v.category || ''} onChange={(category) => set({ category })} options={[{ value: '', label: 'None' }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]} /></div>
+        <div><span className="label">Category</span><Segmented value={v.category || ''} onChange={(category) => set({ category })} options={[{ value: '', label: 'None' }, ...categories.map((c) => ({ value: c.name, label: c.name }))]} /></div>
         <Field label="Location"><input className="input" value={v.location_name || ''} onChange={(e) => set({ location_name: e.target.value })} /></Field>
         <div><span className="label">Tags</span><TagInput value={v.tags || []} onChange={(tags) => set({ tags })} /></div>
         {entry ? <PhotoAlbum target={{ journal_entry_id: entry.id }} canSetCover={false} title="Photos" /> : (

@@ -1,6 +1,6 @@
 // "More": every secondary destination, grouped in quiet lists.
 import { Link } from 'react-router-dom';
-import { BookOpen, CalendarHeart, ChevronRight, Dices, Download, Gift, Lock, Map, Settings, Trash2 } from 'lucide-react';
+import { BookOpen, CalendarHeart, ChevronRight, Dices, Download, FolderTree, Gift, Lock, Map, Settings, Trash2, Wallet } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { Avatar, PageHeader } from '../components/ui.jsx';
 
@@ -8,14 +8,16 @@ export default function MorePage() {
   const { me, partner, trash, workspace } = useApp();
   const groups = [
     [
+      { to: '/fantasy', icon: Lock, label: 'Secret Fantasy', hint: 'Just for the two of you' },
+    ],
+    [
       { to: '/timeline', icon: BookOpen, label: 'Timeline', hint: 'Our story, year by year' },
       { to: '/surprise', icon: Dices, label: 'Surprise Me', hint: 'Let chance pick what’s next' },
+      { to: '/budget', icon: Wallet, label: 'Budget', hint: 'Costs and savings' },
+      { to: '/categories', icon: FolderTree, label: 'Categories', hint: 'Lists and their progress' },
       { to: '/dates', icon: CalendarHeart, label: 'Important dates', hint: 'Anniversaries and birthdays' },
       { to: '/gifts', icon: Gift, label: 'Gift ideas', hint: 'Hints and secret plans' },
       { to: '/map', icon: Map, label: 'Map', hint: 'Every place on our list' },
-    ],
-    [
-      { to: '/fantasy', icon: Lock, label: 'Secret Fantasy', hint: 'Just for the two of you' },
     ],
     [
       { to: '/export', icon: Download, label: 'Export & backup' },

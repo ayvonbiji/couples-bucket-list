@@ -1,6 +1,6 @@
 // Aggregates for the Dashboard, Year-in-review, filters and the "Surprise me" picker.
 import { endOfWeek, isWeekend, nextSaturday, nextSunday, startOfDay, format, addDays } from 'date-fns';
-import { CATEGORIES, STATUSES } from './constants.js';
+import { STATUSES } from './constants.js';
 import { voteSummary } from './scoring.js';
 import { sortBy, toDate, todayISO } from './utils.js';
 
@@ -19,7 +19,7 @@ export function groupByItem(rows) {
 export function summary(items) {
   const year = new Date().getFullYear();
   const byStatus = Object.fromEntries(STATUSES.map((s) => [s, 0]));
-  const byCategory = Object.fromEntries(CATEGORIES.map((c) => [c, { total: 0, done: 0 }]));
+  const byCategory = {};
   let completedThisYear = 0;
   for (const i of items) {
     byStatus[i.status] = (byStatus[i.status] || 0) + 1;
@@ -112,8 +112,9 @@ export function partnerSnapshot(data, userId) {
 // Filtering & sorting (List view, Surprise me)
 // ---------------------------------------------------------------------------
 export const EMPTY_FILTERS = {
-  q: '', categories: [], statuses: [], priorities: [], owner: 'any', minScore: 0,
-  mutualOnly: false, maxCost: '', when: 'any', hideCompleted: false,
+  q: '', categories: [], statuses: [], priorities: [], owner: 'any', createdBy: 'any', minScore: 0,
+  mutualOnly: false, minCost: '', maxCost: '', when: 'any', hideCompleted: false, timeRequired: [],
+  targetFrom: '', targetTo: '', completedFrom: '', completedTo: '',
 };
 
 /** Is the item's date (or timeframe) inside the "when" window? */
@@ -141,7 +142,7 @@ export function applyFilters(items, f, meId) {
   const q = f.q.trim().toLowerCase();
   return items.filter((i) => {
     if (f.hideCompleted && i.status === 'Completed') return false;
-    if (q && ![i.title, i.description, i.location_name, ...(i.tags || [])].some((s) => s?.toLowerCase().includes(q))) return false;
+    if (q && ![i.title, i.description, i.notes, i.subcategory, i.location_name, i.category, ...(i.tags || [])].some((s) => s?.toLowerCase().includes(q))) return false;
     if (f.categories.length && !f.categories.includes(i.category)) return false;
     if (f.statuses.length && !f.statuses.includes(i.status)) return false;
     if (f.priorities.length && !f.priorities.includes(i.priority)) return false;
@@ -150,7 +151,16 @@ export function applyFilters(items, f, meId) {
     if (f.owner === 'partner' && (!i.owner_user_id || i.owner_user_id === meId)) return false;
     if (f.mutualOnly && !i._votes?.mutual) return false;
     if (f.minScore && (i._votes?.score ?? 0) < f.minScore) return false;
-    if (f.maxCost !== '' && f.maxCost !== null && Number(i.est_cost || 0) > Number(f.maxCost)) return false;
+    if (f.maxCost !== '' && f.maxCost !== null && f.maxCost !== undefined && Number(i.est_cost || 0) > Number(f.maxCost)) return false;
+    if (f.minCost && Number(i.est_cost || 0) < Number(f.minCost)) return false;
+    if (f.createdBy === 'me' && i.created_by !== meId) return false;
+    if (f.createdBy === 'partner' && (i.created_by === meId || i.added_by_both)) return false;
+    if (f.createdBy === 'both' && !i.added_by_both) return false;
+    if (f.timeRequired?.length && !f.timeRequired.includes(i.time_required)) return false;
+    if (f.targetFrom && (!i.start_date || i.start_date < f.targetFrom)) return false;
+    if (f.targetTo && (!i.start_date || i.start_date > f.targetTo)) return false;
+    if (f.completedFrom && (!i.completed_at || i.completed_at < f.completedFrom)) return false;
+    if (f.completedTo && (!i.completed_at || i.completed_at > f.completedTo)) return false;
     if (!matchesWhen(i, f.when)) return false;
     return true;
   });
@@ -160,7 +170,7 @@ export const SORTS = {
   mutual:   { label: 'Mutual priority', fn: (i) => (i._votes?.mutual ? 1000 : 0) + (i._votes?.score ?? 0), dir: -1 },
   newest:   { label: 'Newest',          fn: (i) => i.created_at, dir: -1 },
   date:     { label: 'Soonest date',    fn: (i) => i.start_date || null, dir: 1 },
-  priority: { label: 'Priority',        fn: (i) => ({ 'Must-do': 0, Someday: 1, Dream: 2 })[i.priority], dir: 1 },
+  priority: { label: 'Priority',        fn: (i) => ({ High: 0, Medium: 1, Low: 2 })[i.priority] ?? 3, dir: 1 },
   cost:     { label: 'Cheapest',        fn: (i) => (i.est_cost === null || i.est_cost === undefined ? null : Number(i.est_cost)), dir: 1 },
   title:    { label: 'A → Z',           fn: (i) => i.title.toLowerCase(), dir: 1 },
 };

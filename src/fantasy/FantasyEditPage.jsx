@@ -4,21 +4,21 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ImagePlus, Lock, X } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { useFantasy } from './FantasyLayout.jsx';
-import { FANTASY_CATEGORIES } from '../lib/fantasy.js';
 import { cn } from '../lib/utils.js';
 import { EmptyState, Field, PageHeader, Segmented, Spinner, StoredImage } from '../components/ui.jsx';
 
 export default function FantasyEditPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { me } = useApp();
+  const { me, fantasyCategories } = useApp();
   const { data, create, edit } = useFantasy();
   const existing = id ? data.fantasies.find((f) => f.id === id) : null;
   const myNotes = existing ? data.fantasy_notes.find((n) => n.fantasy_id === id && n.user_id === me.id)?.notes : '';
 
   const [v, setV] = useState(() => ({
-    title: existing?.title || '', description: existing?.description || '', category: existing?.category || 'Romance',
-    interest_level: existing?.interest_level || 0,
+    title: existing?.title || '', description: existing?.description || '',
+    category_id: existing?.category_id || fantasyCategories[0]?.id || null,
+    interest_level: existing?.interest_level || 0, planned_date: existing?.planned_date || '', status: existing?.status || 'idea',
   }));
   const [notes, setNotes] = useState(myNotes || '');
   const [file, setFile] = useState(null);
@@ -40,7 +40,9 @@ export default function FantasyEditPage() {
     e.preventDefault();
     if (!v.title.trim()) return setError('Give it a title');
     setBusy(true);
-    const values = { title: v.title.trim(), description: v.description.trim() || null, category: v.category, interest_level: v.interest_level || null };
+    const c = fantasyCategories.find((x) => x.id === v.category_id);
+    const values = { title: v.title.trim(), description: v.description.trim() || null, category_id: c?.id ?? null, category: c?.name ?? 'Other',
+      interest_level: v.interest_level || null, planned_date: v.planned_date || null, ...(existing ? {} : { status: v.status }) };
     const r = existing ? await edit(existing.id, values, { file, removeImage }) : await create(values, { notes, file });
     setBusy(false);
     if (r) nav(existing ? `/fantasy/${existing.id}` : `/fantasy/${r.id}`, { replace: true });
@@ -66,9 +68,16 @@ export default function FantasyEditPage() {
 
         <div>
           <span className="label">Category</span>
-          <Segmented value={v.category} onChange={(category) => setV({ ...v, category })} options={FANTASY_CATEGORIES} />
+          <Segmented value={v.category_id} onChange={(category_id) => setV({ ...v, category_id })} options={fantasyCategories.map((c) => ({ value: c.id, label: c.name }))} />
         </div>
 
+        {!existing && (
+          <div>
+            <span className="label">Start as</span>
+            <Segmented value={v.status} onChange={(status) => setV({ ...v, status })} options={[{ value: 'idea', label: 'Idea' }, { value: 'saved', label: 'Saved' }]} />
+          </div>
+        )}
+        <Field label="Target date (optional)"><input type="date" className="input" value={v.planned_date || ''} onChange={(e) => setV({ ...v, planned_date: e.target.value })} /></Field>
         <div>
           <span className="label">How much do you want this?</span>
           <div className="flex gap-2" role="radiogroup" aria-label="Interest level">

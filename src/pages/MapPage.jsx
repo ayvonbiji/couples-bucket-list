@@ -6,7 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin } from 'lucide-react';
 import { useDecoratedItems } from '../lib/hooks.js';
-import { CATEGORY_META } from '../lib/constants.js';
+import { categoryColor } from '../lib/constants.js';
 import { heartIcon, TILE_ATTR, TILE_URL } from '../components/MapBits.jsx';
 import { EmptyState, PageHeader, Toggle } from '../components/ui.jsx';
 import { StatusText } from '../components/ItemViews.jsx';
@@ -39,7 +39,7 @@ export default function MapPage() {
               <TileLayer url={TILE_URL} attribution={TILE_ATTR} />
               <FitBounds points={points} />
               {pinned.map((i) => (
-                <Marker key={i.id} position={[i.lat, i.lng]} icon={heartIcon(i.status === 'Completed' ? '#8A8590' : (CATEGORY_META[i.category] || CATEGORY_META.Other).color)}>
+                <Marker key={i.id} position={[i.lat, i.lng]} icon={heartIcon(i.status === 'Completed' ? '#8A8590' : categoryColor(i.category))}>
                   <Popup>
                     <div className="min-w-[150px] space-y-0.5">
                       <b className="block text-[14px] font-medium">{i.title}</b>

@@ -1,6 +1,7 @@
 // Supabase implementation of the backend interface (see backend.js for the contract).
 import { createClient } from '@supabase/supabase-js';
 import { DATA_TABLES, FANTASY_TABLES } from './tables.js';
+import { usernameToEmail } from '../lib/auth.js';
 
 export function createSupabaseBackend(url, anonKey) {
   const sb = createClient(url, anonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
@@ -26,8 +27,18 @@ export function createSupabaseBackend(url, anonKey) {
       const { data } = sb.auth.onAuthStateChange((_e, session) => cb(session?.user ?? null));
       return () => data.subscription.unsubscribe();
     },
-    async signInWithEmail(email) {
-      check(await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } }));
+    needsSetup() { return false; }, // accounts are created with scripts/setup-accounts.mjs
+    /** Username + password through Supabase Auth (passwords are hashed by Supabase, never stored by the app). */
+    async signInWithPassword(username, password) {
+      const { error } = await sb.auth.signInWithPassword({ email: usernameToEmail(username), password });
+      if (error) throw new Error(/invalid login credentials/i.test(error.message) ? 'Incorrect username or password' : error.message);
+    },
+    async changePassword(current, next) {
+      const { data } = await sb.auth.getUser();
+      const email = data.user?.email;
+      const { error: e1 } = await sb.auth.signInWithPassword({ email, password: current });
+      if (e1) throw new Error('Your current password is incorrect');
+      check(await sb.auth.updateUser({ password: next }));
     },
     async signOut() {
       await sb.auth.signOut();
@@ -52,6 +63,8 @@ export function createSupabaseBackend(url, anonKey) {
     async updateWorkspace(id, patch) {
       return check(await sb.from('workspaces').update(patch).eq('id', id).select().single());
     },
+    async renameCategory(id, name) { check(await sb.rpc('rename_category', { p_id: id, p_name: name })); },
+    async deleteCategory(id, fallbackId) { check(await sb.rpc('delete_category', { p_id: id, p_fallback: fallbackId })); },
     async updateProfile(id, patch) {
       return check(await sb.from('users').update(patch).eq('id', id).select().single());
     },
@@ -89,7 +102,7 @@ export function createSupabaseBackend(url, anonKey) {
     },
     subscribeFantasies(wsId, onChange) {
       const ch = sb.channel(`fantasy-${wsId}`);
-      for (const t of ['fantasies', 'fantasy_responses', 'fantasy_comments'])
+      for (const t of ['fantasies', 'fantasy_responses', 'fantasy_comments', 'fantasy_photos'])
         ch.on('postgres_changes', { event: '*', schema: 'public', table: t, filter: `workspace_id=eq.${wsId}` }, onChange);
       ch.subscribe();
       return () => sb.removeChannel(ch);
@@ -107,6 +120,8 @@ export function createSupabaseBackend(url, anonKey) {
       return path;
     },
     /** Signed URL (buckets are private), cached for ~50 minutes. */
+    /** Drop cached signed URLs for a bucket (used when leaving Secret Fantasy). */
+    forgetUrls(bucket) { for (const k of [...urlCache.keys()]) if (k.startsWith(`${bucket}/`)) urlCache.delete(k); },
     async fileUrl(bucket, path) {
       const key = `${bucket}/${path}`;
       const hit = urlCache.get(key);

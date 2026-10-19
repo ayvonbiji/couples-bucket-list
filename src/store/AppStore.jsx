@@ -7,7 +7,7 @@ import { DATA_TABLES, DEFAULTS } from '../data/tables.js';
 import { filterForViewer } from '../lib/visibility.js';
 import { seedDates, seedItems } from '../lib/seed.js';
 import { compressImage } from '../lib/image.js';
-import { TRASH_DAYS } from '../lib/constants.js';
+import { TRASH_DAYS, registerCategories } from '../lib/constants.js';
 import { errMsg, todayISO, uid } from '../lib/utils.js';
 import { dueReminders, fireDueNotifications } from '../lib/notifications.js';
 
@@ -25,7 +25,9 @@ export function AppProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [dataLoaded, setDataLoaded] = useState(false); // true once the workspace snapshot has loaded
   const [toasts, setToasts] = useState([]);
+  const [needsSetup, setNeedsSetup] = useState(false); // Demo Mode first run
   const reloadTimer = useRef();
+  const housekeepingDone = useRef(false);
 
   // ---------------- toasts ----------------
   const toast = useCallback((message, type = 'info', action = null) => {
@@ -53,6 +55,7 @@ export function AppProvider({ children }) {
     let unsub;
     getBackend().then(async (b) => {
       setBackend(b);
+      setNeedsSetup(Boolean(b.needsSetup?.()));
       setUser(await b.getUser());
       unsub = b.onAuthChange((u) => setUser(u));
     });
@@ -62,7 +65,12 @@ export function AppProvider({ children }) {
   // Load membership whenever the user changes.
   useEffect(() => {
     if (!backend || user === undefined) return;
-    if (!user) { setMembership(null); setLoading(false); return; }
+    if (!user) {
+      // Signed out: drop all shared data from memory (important on a shared device).
+      setMembership(null); setRaw(emptyData()); setDataLoaded(false); setLoading(false);
+      housekeepingDone.current = false;
+      return;
+    }
     setLoading(true);
     backend.getMembership(user.id)
       .then(setMembership)
@@ -105,11 +113,15 @@ export function AppProvider({ children }) {
       reloadTimer.current = setTimeout(reload, 350);
     });
     return () => { cancelled = true; unsub?.(); };
-  }, [backend, ws?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [backend, ws?.id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Privacy filtering for the current viewer (surprises, hidden gifts).
   const data = useMemo(() => (me ? filterForViewer(raw, me.id) : raw), [raw, me]);
   const items = useMemo(() => data.items.filter((i) => !i.is_deleted), [data.items]);
+  // Editable categories, ordered.
+  useMemo(() => registerCategories(data.categories || []), [data.categories]);
+  const categories = useMemo(() => [...data.categories].filter((c) => c.kind === 'bucket').sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)), [data.categories]);
+  const fantasyCategories = useMemo(() => [...data.categories].filter((c) => c.kind === 'fantasy').sort((a, b) => a.position - b.position || a.name.localeCompare(b.name)), [data.categories]);
   const trash = useMemo(() => data.items.filter((i) => i.is_deleted), [data.items]);
 
   // ---------------- local state patch helpers ----------------
@@ -131,6 +143,13 @@ export function AppProvider({ children }) {
     const insert = async (table, row) => { const r = await backend.insert(table, { ...base, ...row }); putRow(table, r); return r; };
     const update = async (table, id, patch) => { const r = await backend.update(table, { id }, patch); putRow(table, r ?? { id, ...patch }); return r; };
     const remove = async (table, id) => { await backend.remove(table, { id }); dropRows(table, (r) => r.id === id); };
+    /** Keep category text and category_id in step (text is what lists, filters and exports read). */
+    const withCategory = (values) => {
+      if (!('category' in values) && !('category_id' in values)) return values;
+      const cats = raw.categories.filter((c) => c.kind === 'bucket');
+      const c = (values.category_id && cats.find((x) => x.id === values.category_id)) || cats.find((x) => x.name === values.category);
+      return c ? { ...values, category_id: c.id, category: c.name } : values;
+    };
 
     // ---------- photos ----------
     /** Compress + upload files, creating item_photos rows. `target` = { item_id } or { journal_entry_id }. */
@@ -179,8 +198,8 @@ export function AppProvider({ children }) {
       const existing = raw.journal_entries.find((j) => j.item_id === item.id);
       const row = {
         title: item.title, entry_date: item.completed_at || todayISO(), note: item.completion_note,
-        rating: item.would_do_again, category: item.category, location_name: item.location_name,
-        lat: item.lat, lng: item.lng, tags: item.tags || [],
+        rating: item.satisfaction ?? item.would_do_again, category: item.category, location_name: item.location_name,
+        lat: item.lat, lng: item.lng, tags: item.tags || [], favourite_moment: item.favourite_memory ?? null,
       };
       return existing ? update('journal_entries', existing.id, row) : insert('journal_entries', { ...row, item_id: item.id, created_by: me.id });
     }
@@ -190,7 +209,7 @@ export function AppProvider({ children }) {
 
       // ---------- items ----------
       createItem: (values, { subtasks = [], files = [] } = {}) => run(async () => {
-        const item = await insert('items', { ...values, created_by: me.id });
+        const item = await insert('items', withCategory({ ...values, created_by: me.id }));
         for (const [k, title] of subtasks.entries()) await insert('subtasks', { item_id: item.id, title, position: k });
         if (files.length) {
           const photos = await uploadPhotos({ item_id: item.id }, files);
@@ -200,18 +219,44 @@ export function AppProvider({ children }) {
       }, 'Added to your list'),
 
       updateItem: (id, patch, msg) => run(async () => {
-        const r = await update('items', id, patch);
-        if (r?.status === 'Completed') await syncJournalForItem(r);
+        const r = await update('items', id, withCategory(patch));
+        if (r?.status === 'Completed') await syncJournalForItem({ ...raw.items.find((i) => i.id === id), ...r });
         return r;
       }, msg),
 
+      /** Copy an item as a fresh idea (checklist copied unticked; no photos, votes or completion). */
+      duplicateItem: (id) => run(async () => {
+        const src = raw.items.find((i) => i.id === id);
+        const keep = ['title', 'description', 'category', 'category_id', 'subcategory', 'notes', 'priority', 'timeframe', 'location_name', 'lat', 'lng',
+          'est_cost', 'currency', 'owner_user_id', 'tags', 'savings_target', 'time_required'];
+        const copy = Object.fromEntries(keep.map((k) => [k, src[k]]));
+        const item = await insert('items', { ...copy, title: `${src.title} (copy)`.slice(0, 140), status: 'Idea', created_by: me.id });
+        const subs = raw.subtasks.filter((x) => x.item_id === id).sort((a, b) => a.position - b.position);
+        for (const [k, st] of subs.entries()) await insert('subtasks', { item_id: item.id, title: st.title, position: k, due_date: st.due_date ?? null });
+        return item;
+      }, 'Duplicated'),
+
+      /** One-tap complete from a checkbox: today's date, details can be added later. */
+      quickComplete: (id) => run(async () => {
+        const r = await update('items', id, { status: 'Completed', completed_at: todayISO() });
+        await syncJournalForItem({ ...raw.items.find((i) => i.id === id), ...r });
+        return r;
+      }),
+
+      /** Edit the experience details of a completed item. */
+      updateCompletion: (id, patch) => run(async () => {
+        const r = await update('items', id, patch);
+        await syncJournalForItem({ ...raw.items.find((i) => i.id === id), ...r });
+        return r;
+      }, 'Memory saved'),
+
       /** Mark complete with memory details; creates the timeline journal entry. */
-      completeItem: (id, { completed_at, completion_note, would_do_again, actual_cost, files = [] }) => run(async () => {
-        const r = await update('items', id, { status: 'Completed', completed_at, completion_note, would_do_again, actual_cost });
+      completeItem: (id, { completed_at, completion_note, would_do_again, actual_cost, satisfaction = null, favourite_memory = null, reflection = null, files = [] }) => run(async () => {
+        const r = await update('items', id, { status: 'Completed', completed_at, completion_note, would_do_again, actual_cost, satisfaction, favourite_memory, reflection });
         if (files.length) await uploadPhotos({ item_id: id }, files);
         await syncJournalForItem({ ...raw.items.find((i) => i.id === id), ...r });
         return r;
-      }, 'Completed! Saved to your Memories'),
+      }, 'Completed — saved to your Memories'),
 
       reopenItem: (id) => run(async () => {
         await update('items', id, { status: 'In Progress', completed_at: null });
@@ -259,10 +304,11 @@ export function AppProvider({ children }) {
       deleteComment: (id) => run(() => remove('comments', id)),
 
       // ---------- subtasks ----------
-      addSubtask: (itemId, title) => run(() => {
+      addSubtask: (itemId, title, due_date = null) => run(() => {
         const pos = raw.subtasks.filter((s) => s.item_id === itemId).length;
-        return insert('subtasks', { item_id: itemId, title: title.trim(), position: pos });
+        return insert('subtasks', { item_id: itemId, title: title.trim(), position: pos, due_date: due_date || null });
       }),
+      updateSubtask: (id, patch) => run(() => update('subtasks', id, patch)),
       toggleSubtask: (s) => run(() => update('subtasks', s.id, { done: !s.done })),
       deleteSubtask: (id) => run(() => remove('subtasks', id)),
 
@@ -353,6 +399,9 @@ export function AppProvider({ children }) {
             for (const r of raw[t]) await backend.remove(t, { id: r.id }).catch(() => {});
         }
         const plan = restorePlan(backup, { workspaceId: ws.id, meId: me.id, partnerId: partner?.id ?? null });
+        // Categories are per-list: re-attach restored items to this list's categories by name.
+        const catByName = new Map(raw.categories.filter((c) => c.kind === 'bucket').map((c) => [c.name, c.id]));
+        for (const [table, rows] of plan) if (table === 'items') for (const r of rows) r.category_id = catByName.get(r.category) ?? null;
         const now = new Date().toISOString();
         for (const [table, rows] of plan) {
           if (!rows.length) continue;
@@ -363,13 +412,30 @@ export function AppProvider({ children }) {
         await reload();
       }, 'Backup restored'),
 
-      // ---------- demo helpers ----------
-      switchDemoUser: (userId) => backend.signInDemo?.(userId),
+      // ---------- categories ----------
+      addCategory: (kind, name, color) => run(() => {
+        const list = raw.categories.filter((c) => c.kind === kind);
+        if (list.some((c) => c.name.toLowerCase() === name.trim().toLowerCase())) throw new Error('That category already exists');
+        return insert('categories', { kind, name: name.trim(), color, position: list.reduce((m, c) => Math.max(m, c.position), -1) + 1 });
+      }, 'Category added'),
+      renameCategory: (id, name) => run(async () => {
+        const c = raw.categories.find((x) => x.id === id);
+        if (raw.categories.some((x) => x.kind === c.kind && x.id !== id && x.name.toLowerCase() === name.trim().toLowerCase())) throw new Error('That name is already used');
+        await backend.renameCategory(id, name.trim());
+        await reload();
+      }, 'Renamed'),
+      recolorCategory: (id, color) => run(() => update('categories', id, { color })),
+      reorderCategories: (ordered) => run(async () => {
+        for (const [k, c] of ordered.entries()) if (c.position !== k) await update('categories', c.id, { position: k });
+      }),
+      deleteCategory: (id, fallbackId) => run(async () => { await backend.deleteCategory(id, fallbackId); await reload(); }, 'Category removed'),
+
+      // ---------- account ----------
+      changePassword: (current, next) => run(async () => { await backend.changePassword(current, next); return true; }, 'Password changed'),
     };
   }, [backend, ws, me, partner, raw, membership, reload, run]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // One-time housekeeping after data loads: purge old trash, weekly auto-backup, reminders.
-  const housekeepingDone = useRef(false);
   useEffect(() => {
     if (!dataLoaded || loading || !ws || !actions.purgeOldTrash || housekeepingDone.current) return;
     housekeepingDone.current = true;
@@ -394,7 +460,8 @@ export function AppProvider({ children }) {
 
   const value = {
     backend, mode: backend?.mode, user, me, partner, workspace: ws, membership,
-    data, items, trash, loading: loading || user === undefined || (user && membership === undefined),
+    data, items, trash, categories, fantasyCategories, needsSetup, finishSetup: () => setNeedsSetup(false),
+    loading: loading || user === undefined || (user && membership === undefined),
     toasts, toast, dismissToast, reminders, personLabel,
     setMembership,
     ...actions,
@@ -406,9 +473,11 @@ export function AppProvider({ children }) {
 async function seedWorkspace(backend, ws, meId, partnerId) {
   const base = { workspace_id: ws.id };
   const items = seedItems(meId, ws.currency);
+  const { categories = [] } = await backend.loadAll(ws.id);
+  const catId = (name) => categories.find((c) => c.kind === 'bucket' && c.name === name)?.id ?? null;
   for (const [k, raw] of items.entries()) {
     const { _subtasks = [], ...values } = raw;
-    const item = await backend.insert('items', { ...base, ...values });
+    const item = await backend.insert('items', { ...base, ...values, category_id: catId(values.category) });
     for (const [p, title] of _subtasks.entries()) await backend.insert('subtasks', { ...base, item_id: item.id, title, position: p, done: p === 0 });
     if (k < 4) await backend.upsert('item_votes', { ...base, item_id: item.id, user_id: meId, stars: [5, 3, 4, 5][k], updated_at: new Date().toISOString() }, 'item_id,user_id');
     // Demo Mode has both partners present, so seed their votes too (shows the "We both want this" badge).

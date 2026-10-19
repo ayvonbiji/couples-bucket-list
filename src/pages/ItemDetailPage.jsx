@@ -1,7 +1,7 @@
 // Item detail: every field, organised. Essentials up top; planning tools in expandable sections.
-import { lazy, Suspense, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Check, ChevronLeft, Eye, EyeOff, ExternalLink, Gift, Heart, Images, Link2, ListChecks, MessageCircle, Pencil, Plus, RotateCcw, Send, ThumbsUp, Trash2, X } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Check, ChevronLeft, Ellipsis, Eye, EyeOff, ExternalLink, Gift, Heart, Images, Link2, ListChecks, MessageCircle, NotebookPen, Pencil, Plus, RotateCcw, Send, ThumbsUp, Trash2, X } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { voteSummary } from '../lib/scoring.js';
 import { surpriseIsActive } from '../lib/visibility.js';
@@ -15,6 +15,7 @@ import PhotoAlbum from '../components/PhotoAlbum.jsx';
 import ItemWishlist from '../components/Wishlist.jsx';
 import CompleteDialog from '../components/CompleteDialog.jsx';
 import DeleteItemDialog from '../components/DeleteItemDialog.jsx';
+import ItemActionSheet from '../components/ItemActions.jsx';
 
 const MiniMap = lazy(() => import('../components/MapBits.jsx').then((m) => ({ default: m.MiniMap })));
 
@@ -23,8 +24,12 @@ export default function ItemDetailPage() {
   const nav = useNavigate();
   const { data, me, partner, personLabel, updateItem, vote, toggleReaction, revealSurprise, reopenItem } = useApp();
   const item = data.items.find((i) => i.id === id);
-  const [completing, setCompleting] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const [completing, setCompleting] = useState(false); // false | 'complete' | 'edit'
   const [deleting, setDeleting] = useState(null);
+  const [acting, setActing] = useState(false);
+  // "Add details" from a quick tick opens the experience sheet.
+  useEffect(() => { if (params.get('complete')) { setCompleting('edit'); setParams({}, { replace: true }); } }, [params, setParams]);
 
   const votes = useMemo(() => voteSummary(data.item_votes.filter((v) => v.item_id === id), me.id, partner?.id), [data.item_votes, id, me.id, partner?.id]);
   const photos = useMemo(() => data.item_photos.filter((p) => p.item_id === id).sort((a, b) => a.position - b.position), [data.item_photos, id]);
@@ -39,7 +44,7 @@ export default function ItemDetailPage() {
 
   const setStatus = (status) => {
     if (status === item.status) return;
-    if (status === 'Completed') return setCompleting(true);
+    if (status === 'Completed') return setCompleting('complete');
     if (item.status === 'Completed') return reopenItem(item.id).then(() => status !== 'In Progress' && updateItem(item.id, { status }));
     updateItem(item.id, { status });
   };
@@ -50,7 +55,10 @@ export default function ItemDetailPage() {
       <div className="sticky top-0 z-20 flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top),0.6rem)]">
         <button className="icon-btn bg-cream-50/80 backdrop-blur-xl dark:bg-ink-950/70" onClick={() => nav(-1)} aria-label="Back"><ChevronLeft size={22} strokeWidth={1.75} /></button>
         {!deleted && (
-          <button className="icon-btn bg-cream-50/80 backdrop-blur-xl dark:bg-ink-950/70" onClick={() => nav(`/item/${id}/edit`)} aria-label="Edit"><Pencil size={17} strokeWidth={1.6} /></button>
+          <div className="flex gap-2">
+            <button className="icon-btn bg-cream-50/80 backdrop-blur-xl dark:bg-ink-950/70" onClick={() => nav(`/item/${id}/edit`)} aria-label="Edit"><Pencil size={17} strokeWidth={1.6} /></button>
+            <button className="icon-btn bg-cream-50/80 backdrop-blur-xl dark:bg-ink-950/70" onClick={() => setActing(true)} aria-label="More actions"><Ellipsis size={18} strokeWidth={1.6} /></button>
+          </div>
         )}
       </div>
 
@@ -66,12 +74,13 @@ export default function ItemDetailPage() {
           <div className="flex flex-wrap items-center gap-2.5">
             <CategoryDot category={item.category} />
             <StatusText status={item.status} />
-            <span className="muted text-[13px]">{item.priority}</span>
+            <span className="muted text-[13px]">{item.priority} priority</span>
             {votes.mutual && <MutualBadge small />}
           </div>
           <h1 className="title-serif mt-2 text-[34px] leading-[1.1]">{item.title}</h1>
+          {item.subcategory && <p className="muted mt-1 text-[14px]">{item.subcategory}</p>}
           <p className="muted mt-2 text-[13px]">
-            Added by {item.added_by_both ? 'both of you' : personLabel(item.created_by)} · {item.owner_user_id ? `${personLabel(item.owner_user_id)}’s dream` : 'For both of you'}
+            Added by {item.added_by_both ? 'both of you' : personLabel(item.created_by)} on {fmtDate(item.created_at, 'd MMM yyyy')} · {item.owner_user_id ? `${personLabel(item.owner_user_id)}’s dream` : 'For both of you'}
           </p>
           {item.description && <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700 dark:text-[#D4CFD5]">{item.description}</p>}
         </section>
@@ -91,8 +100,8 @@ export default function ItemDetailPage() {
         {/* Status */}
         {!deleted && (
           <section className="space-y-3">
-            <SegmentedControl value={item.status} onChange={setStatus} options={STATUSES.map((s) => ({ value: s, label: s === 'In Progress' ? 'Doing' : s === 'Completed' ? 'Done' : s }))} />
-            {item.status !== 'Completed' && <button className="btn-primary w-full" onClick={() => setCompleting(true)}><Check size={18} strokeWidth={1.75} /> Mark as completed</button>}
+            <SegmentedControl value={item.status} onChange={setStatus} options={STATUSES.map((s) => ({ value: s, label: { 'In Progress': 'Doing', 'On Hold': 'On hold', Completed: 'Done' }[s] || s }))} />
+            {item.status !== 'Completed' && <button className="btn-primary w-full" onClick={() => setCompleting('complete')}><Check size={18} strokeWidth={1.75} /> Mark as completed</button>}
           </section>
         )}
 
@@ -101,13 +110,25 @@ export default function ItemDetailPage() {
           <section>
             <div className="mb-2.5 flex items-baseline justify-between">
               <h2 className="section-title">Our memory</h2>
-              {!deleted && <button className="btn-link text-[13px]" onClick={() => reopenItem(item.id)}><RotateCcw size={13} /> Reopen</button>}
+              {!deleted && (
+                <span className="flex gap-4">
+                  <button className="btn-link text-[13px]" onClick={() => setCompleting('edit')}><NotebookPen size={13} /> Edit</button>
+                  <button className="btn-link text-[13px]" onClick={() => reopenItem(item.id)}><RotateCcw size={13} /> Reopen</button>
+                </span>
+              )}
             </div>
             <div className="list-group px-4 py-4">
-              {item.completion_note ? <p className="title-serif text-[22px] italic leading-snug">“{item.completion_note}”</p> : <p className="muted text-[14px]">No note yet.</p>}
+              {item.completion_note ? <p className="title-serif text-[22px] italic leading-snug">“{item.completion_note}”</p>
+                : <button className="muted text-left text-[14px]" onClick={() => setCompleting('edit')}>How was the experience? Add a note.</button>}
+              {item.favourite_memory && <p className="mt-3 text-[14px]"><span className="muted">Favourite memory · </span>{item.favourite_memory}</p>}
+              {item.reflection && (
+                <details className="mt-3"><summary className="btn-link cursor-pointer text-[13px]">Read reflection</summary>
+                  <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{item.reflection}</p></details>
+              )}
               <p className="muted mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
                 <span>{fmtDate(item.completed_at, 'd MMMM yyyy')}</span>
-                {item.actual_cost ? <span>Spent {fmtMoney(item.actual_cost, item.currency)}</span> : null}
+                {item.satisfaction && <span className="flex items-center gap-1.5">Rating <Stars value={item.satisfaction} readOnly size={13} /></span>}
+                {item.actual_cost ? <span>Final cost {fmtMoney(item.actual_cost, item.currency)}</span> : null}
                 {item.would_do_again && <span className="flex items-center gap-1.5">Again? <Stars value={item.would_do_again} readOnly size={13} /></span>}
               </p>
             </div>
@@ -155,9 +176,12 @@ export default function ItemDetailPage() {
               {!item.start_date && !item.timeframe && <span className="muted">Not set</span>}
             </InfoRow>
             <InfoRow label="Where">{item.location_name || <span className="muted">Not set</span>}</InfoRow>
-            <InfoRow label="Budget">{item.est_cost ? fmtMoney(item.est_cost, item.currency) : <span className="muted">Not set</span>}</InfoRow>
+            <InfoRow label="Estimated budget">{item.est_cost ? fmtMoney(item.est_cost, item.currency) : <span className="muted">Not set</span>}</InfoRow>
+            {item.actual_cost && item.status !== 'Completed' ? <InfoRow label="Actual cost">{fmtMoney(item.actual_cost, item.currency)}</InfoRow> : null}
+            {item.time_required && <InfoRow label="Time required">{item.time_required}</InfoRow>}
             {item.savings_target ? <Savings item={item} /> : null}
             {item.reminder_at && <InfoRow label="Reminder">{fmtDate(item.reminder_at, 'd MMM, HH:mm')}{item.reminder_done && ' ✓'}</InfoRow>}
+            {item.notes && <div className="px-4 py-3"><span className="muted block text-[14px]">Notes</span><p className="mt-1 whitespace-pre-wrap text-[15px]">{item.notes}</p></div>}
             {item.tags?.length > 0 && <InfoRow label="Tags"><span className="flex flex-wrap justify-end gap-1.5">{item.tags.map((t) => <span key={t} className="chip-quiet">{t}</span>)}</span></InfoRow>}
           </div>
           {item.lat !== null && item.lat !== undefined && (
@@ -172,7 +196,7 @@ export default function ItemDetailPage() {
           <Disclosure title="Photos" icon={Images} meta={photos.length || ''} defaultOpen={photos.length > 0}>
             <PhotoAlbum target={{ item_id: item.id }} coverId={cover?.id} bare />
           </Disclosure>
-          <Disclosure title="Checklist" icon={ListChecks} meta={subs.length ? `${subs.filter((s) => s.done).length}/${subs.length}` : ''}>
+          <Disclosure title="Preparation" icon={ListChecks} meta={subs.length ? `${subs.filter((s) => s.done).length}/${subs.length} ready` : ''} defaultOpen={subs.length > 0 && item.status !== 'Completed'}>
             <Checklist itemId={item.id} />
           </Disclosure>
           <Disclosure title="Notes to each other" icon={MessageCircle} meta={count('comments') || ''}>
@@ -193,7 +217,8 @@ export default function ItemDetailPage() {
         )}
       </div>
 
-      {completing && <CompleteDialog item={item} open onClose={() => setCompleting(false)} />}
+      {completing && <CompleteDialog item={item} open edit={completing === 'edit' && item.status === 'Completed'} onClose={() => setCompleting(false)} />}
+      {acting && <ItemActionSheet item={item} onClose={() => setActing(false)} onDeleted={() => nav('/list', { replace: true })} />}
       <DeleteItemDialog ids={deleting} onClose={() => setDeleting(null)} onDone={() => nav('/list', { replace: true })} />
     </div>
   );
@@ -222,24 +247,40 @@ function Savings({ item }) {
 }
 
 function Checklist({ itemId }) {
-  const { data, addSubtask, toggleSubtask, deleteSubtask } = useApp();
+  const { data, addSubtask, toggleSubtask, updateSubtask, deleteSubtask } = useApp();
   const [text, setText] = useState('');
+  const [due, setDue] = useState('');
   const subs = data.subtasks.filter((s) => s.item_id === itemId).sort((a, b) => a.position - b.position);
+  const done = subs.filter((s) => s.done).length;
+  const today = new Date().toISOString().slice(0, 10);
   return (
     <div>
+      {subs.length > 0 && (
+        <div className="mb-3">
+          <div className="muted mb-1.5 flex justify-between text-[13px]"><span>Preparation progress</span><span>{done} of {subs.length}</span></div>
+          <ProgressBar value={done} max={subs.length} className="h-1" color="bg-[#6F9884]" />
+        </div>
+      )}
       <ul className="-mx-1 space-y-0.5">
         {subs.map((s) => (
           <li key={s.id} className="group flex min-h-[44px] items-center gap-3 rounded-lg px-1">
-            <button onClick={() => toggleSubtask(s)} className={cn('grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-[1.5px] transition', s.done ? 'border-ink-500 bg-ink-500 text-white dark:border-ink-500' : 'border-ink-500/40')}
-              aria-label={s.done ? `Mark “${s.title}” not done` : `Mark “${s.title}” done`}>{s.done && <Check size={12} strokeWidth={2.5} />}</button>
-            <span className={cn('flex-1 text-[15px]', s.done && 'muted line-through')}>{s.title}</span>
+            <button onClick={() => toggleSubtask(s)} className={cn('grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-[1.5px] transition', s.done ? 'border-[#6F9884] bg-[#6F9884] text-white' : 'border-ink-500/40')}
+              role="checkbox" aria-checked={s.done} aria-label={s.title}>{s.done && <Check size={12} strokeWidth={2.5} />}</button>
+            <span className={cn('min-w-0 flex-1 text-[15px]', s.done && 'muted line-through')}>{s.title}</span>
+            <label className={cn('relative text-[12px]', !s.done && s.due_date && s.due_date < today ? 'text-rose-600' : 'muted')}>
+              {s.due_date ? fmtDate(s.due_date, 'd MMM') : <span className="opacity-60">Due</span>}
+              <input type="date" className="absolute inset-0 opacity-0" value={s.due_date || ''} onChange={(e) => updateSubtask(s.id, { due_date: e.target.value || null })} aria-label={`Due date for ${s.title}`} />
+            </label>
             <button className="muted opacity-60 transition hover:opacity-100" onClick={() => deleteSubtask(s.id)} aria-label={`Delete “${s.title}”`}><X size={16} strokeWidth={1.6} /></button>
           </li>
         ))}
       </ul>
-      <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) { addSubtask(itemId, text); setText(''); } }}>
-        <input className="input py-2" maxLength={200} placeholder="Add a step" value={text} onChange={(e) => setText(e.target.value)} aria-label="New checklist step" />
-        <button className="btn-soft min-h-[42px] px-3" aria-label="Add step"><Plus size={18} strokeWidth={1.75} /></button>
+      <form className="mt-2 space-y-2" onSubmit={(e) => { e.preventDefault(); if (text.trim()) { addSubtask(itemId, text, due); setText(''); setDue(''); } }}>
+        <div className="flex gap-2">
+          <input className="input py-2" maxLength={200} placeholder="Add a task (book flights, set budget…)" value={text} onChange={(e) => setText(e.target.value)} aria-label="New checklist step" />
+          <button className="btn-soft min-h-[42px] px-3" aria-label="Add step"><Plus size={18} strokeWidth={1.75} /></button>
+        </div>
+        {text && <input type="date" className="input py-2 text-[14px]" value={due} onChange={(e) => setDue(e.target.value)} aria-label="Due date (optional)" />}
       </form>
     </div>
   );

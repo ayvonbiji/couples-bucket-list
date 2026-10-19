@@ -1,28 +1,35 @@
-// Sign in. Supabase mode: email magic link. Demo Mode: pick which partner you are.
+// Sign in with username + password.
+// Supabase mode: Supabase Auth (bcrypt-hashed passwords, refresh-token sessions).
+// Demo Mode: accounts created on the setup screen, stored as PBKDF2 hashes on this device.
 import { useState } from 'react';
-import { Heart, Mail } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Heart } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
-import { DEMO_USERS } from '../data/localBackend.js';
 import { Spinner } from '../components/ui.jsx';
+import { validateUsername, validatePassword } from '../lib/auth.js';
 import { errMsg } from '../lib/utils.js';
 
 export default function LoginPage() {
-  const { backend, mode, toast } = useApp();
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
+  const { backend, mode } = useApp();
+  const nav = useNavigate();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
 
   async function submit(e) {
     e.preventDefault();
-    setError('');
-    if (!/^\S+@\S+\.\S+$/.test(email)) return setError('Enter a valid email address');
+    const errs = { username: validateUsername(username), password: validatePassword(password) };
+    setErrors(errs);
+    if (errs.username || errs.password) return;
     setBusy(true);
     try {
-      await backend.signInWithEmail(email.trim());
-      setSent(true);
+      await backend.signInWithPassword(username, password);
+      nav('/', { replace: true }); // always land on Home after signing in
     } catch (err) {
-      setError(errMsg(err));
+      setErrors({ form: errMsg(err) });
+      setPassword('');
     } finally {
       setBusy(false);
     }
@@ -36,39 +43,32 @@ export default function LoginPage() {
             <Heart size={22} strokeWidth={1.5} />
           </span>
           <h1 className="title-serif text-[44px] leading-none">Our Bucket List</h1>
-          <p className="muted mx-auto mt-3 max-w-[18rem] text-[15px]">A private space for the two of you — dreams, plans and the memories you make.</p>
+          <p className="muted mx-auto mt-3 max-w-[18rem] text-[15px]">A private space for the two of you.</p>
         </div>
 
-        {mode === 'supabase' ? (
-          sent ? (
-            <div className="text-center">
-              <Mail size={22} strokeWidth={1.5} className="mx-auto text-rose-500" />
-              <h2 className="mt-3 text-[17px] font-semibold">Check your inbox</h2>
-              <p className="muted mt-1 text-[14px]">We sent a sign-in link to {email}. Open it on this device.</p>
-              <button className="btn-ghost mt-4" onClick={() => setSent(false)}>Use a different email</button>
-            </div>
-          ) : (
-            <form onSubmit={submit} className="space-y-3" noValidate>
-              <input id="email" type="email" autoComplete="email" className="input" placeholder="Your email"
-                value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!error} aria-label="Your email" />
-              {error && <p className="err" role="alert">{error}</p>}
-              <button className="btn-dark w-full" disabled={busy}>
-                {busy ? <Spinner className="h-4 w-4" /> : 'Continue with email'}
-              </button>
-              <p className="muted text-center text-[13px]">No password. We’ll email you a magic link.</p>
-            </form>
-          )
-        ) : (
-          <div className="space-y-2.5">
-            {DEMO_USERS.map((u, k) => (
-              <button key={u.id} className={k === 0 ? 'btn-dark w-full' : 'btn-soft w-full'}
-                onClick={() => backend.signInDemo(u.id).catch((e) => toast(errMsg(e), 'error'))}>
-                Continue as {k === 0 ? 'me' : 'my partner'}
-              </button>
-            ))}
-            <p className="muted pt-3 text-center text-[13px]">Demo mode — data stays in this browser.<br />Connect Supabase for two synced accounts.</p>
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <div>
+            <label className="label" htmlFor="username">Username</label>
+            <input id="username" className="input" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+              value={username} onChange={(e) => { setUsername(e.target.value); setErrors({}); }} aria-invalid={!!errors.username} aria-describedby={errors.username ? 'username-err' : undefined} />
+            {errors.username && <p id="username-err" className="err">{errors.username}</p>}
           </div>
-        )}
+          <div>
+            <label className="label" htmlFor="password">Password</label>
+            <div className="relative">
+              <input id="password" className="input pr-12" type={show ? 'text' : 'password'} autoComplete="current-password"
+                value={password} onChange={(e) => { setPassword(e.target.value); setErrors({}); }} aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-err' : undefined} />
+              <button type="button" className="icon-btn absolute right-1 top-1/2 h-9 w-9 -translate-y-1/2" onClick={() => setShow(!show)} aria-label={show ? 'Hide password' : 'Show password'} aria-pressed={show}>
+                {show ? <EyeOff size={17} strokeWidth={1.6} /> : <Eye size={17} strokeWidth={1.6} />}
+              </button>
+            </div>
+            {errors.password && <p id="password-err" className="err">{errors.password}</p>}
+          </div>
+          {errors.form && <p className="rounded-xl bg-rose-50 px-3.5 py-2.5 text-[14px] text-rose-700 dark:bg-rose-900/20 dark:text-rose-300" role="alert">{errors.form}</p>}
+          <button className="btn-dark w-full" disabled={busy}>{busy ? <><Spinner className="h-4 w-4" /> Signing in…</> : 'Sign in'}</button>
+        </form>
+
+        {mode === 'local' && <p className="muted mt-8 text-center text-[12px]">Demo mode — accounts and data live on this device only.</p>}
       </div>
     </main>
   );

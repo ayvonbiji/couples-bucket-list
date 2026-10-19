@@ -21,6 +21,10 @@ import ExportPage from './pages/ExportPage.jsx';
 import SharePage from './pages/SharePage.jsx';
 import MorePage from './pages/MorePage.jsx';
 import SurprisePage from './pages/SurprisePage.jsx';
+import SetupPage from './pages/SetupPage.jsx';
+import CategoriesPage from './pages/CategoriesPage.jsx';
+import BudgetPage from './pages/BudgetPage.jsx';
+import Sidebar from './components/Sidebar.jsx';
 
 // Heavier or private areas load on demand.
 const CalendarPage = lazy(() => import('./pages/CalendarPage.jsx'));
@@ -32,7 +36,7 @@ const FantasyDetailPage = lazy(() => import('./fantasy/FantasyDetailPage.jsx'));
 const FantasyEditPage = lazy(() => import('./fantasy/FantasyEditPage.jsx'));
 
 export default function App() {
-  const { user, workspace, loading } = useApp();
+  const { user, workspace, loading, needsSetup, finishSetup } = useApp();
   const { pathname } = useLocation();
 
   // Public read-only share link works signed-out.
@@ -45,11 +49,15 @@ export default function App() {
   }
 
   if (loading) return <FullScreenLoader />;
+  // Every protected route renders the login screen until there is a valid session.
+  if (needsSetup) return (<><SetupPage onDone={finishSetup} /><Toasts /></>);
   if (!user) return (<><LoginPage /><Toasts /></>);
   if (!workspace) return (<><LinkPage /><Toasts /></>);
 
   return (
-    <div className="mx-auto min-h-dvh max-w-2xl pb-28">
+    <div className="lg:flex">
+    <Sidebar />
+    <div className="mx-auto min-h-dvh w-full max-w-2xl pb-28 lg:pb-12">
       <Suspense fallback={<FullScreenLoader />}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
@@ -68,6 +76,8 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/trash" element={<TrashPage />} />
           <Route path="/export" element={<ExportPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/budget" element={<BudgetPage />} />
           <Route path="/fantasy" element={<FantasyLayout />}>
             <Route index element={<FantasyListPage />} />
             <Route path="new" element={<FantasyEditPage />} />
@@ -79,6 +89,7 @@ export default function App() {
       </Suspense>
       <BottomNav />
       <Toasts />
+    </div>
     </div>
   );
 }

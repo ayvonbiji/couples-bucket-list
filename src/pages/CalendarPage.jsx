@@ -12,7 +12,7 @@ import { useApp } from '../store/AppStore.jsx';
 import { useDecoratedItems } from '../lib/hooks.js';
 import { occurrenceTitle, occurrencesBetween, yearsAt } from '../lib/recurrence.js';
 import { parseICS } from '../lib/ics.js';
-import { CATEGORY_META, IMPORTANT_DATE_COLOR, STATUS_META } from '../lib/constants.js';
+import { IMPORTANT_DATE_COLOR, STATUS_META, categoryColor } from '../lib/constants.js';
 import { cn, countdownLabel, errMsg, fmtDate, toDate } from '../lib/utils.js';
 import { Modal, PageHeader, Segmented, SegmentedControl, Spinner, Toggle } from '../components/ui.jsx';
 
@@ -64,7 +64,7 @@ export default function CalendarPage() {
       if (!i.start_date || (!showCompleted && i.status === 'Completed')) continue;
       const s = toDate(i.start_date), e = toDate(i.end_date) || s;
       if (e < range.start || s > range.end) continue;
-      const color = colorBy === 'status' ? STATUS_META[i.status].color : colorBy === 'type' ? '#e2555a' : CATEGORY_META[i.category]?.color;
+      const color = colorBy === 'status' ? STATUS_META[i.status].color : colorBy === 'type' ? '#C65D70' : categoryColor(i.category);
       for (const d of eachDayOfInterval({ start: s < range.start ? range.start : s, end: e > range.end ? range.end : e })) {
         push(d, { id: `item-${i.id}-${iso(d)}`, type: 'item', item: i, title: i.title, color, isStart: iso(d) === i.start_date, done: i.status === 'Completed' });
       }
@@ -105,10 +105,8 @@ export default function CalendarPage() {
     if (ok) toast(`Moved to ${fmtDate(target, 'EEE d MMM')}`, 'info', { label: 'Undo', onClick: () => updateItem(item.id, { start_date: item.start_date, end_date: item.end_date, status: item.status }) });
   }
 
-  const openEvent = (ev) => {
-    if (ev.type === 'item') nav(`/item/${ev.item.id}`);
-    else if (ev.type === 'date') nav('/dates');
-  };
+  const [eventSheet, setEventSheet] = useState(null);
+  const openEvent = (ev) => { setDaySheet(null); setEventSheet(ev); };
   const step = (dir) => setCursor((c) => (view === 'month' ? addMonths(c, dir) : addWeeks(c, dir)));
   const title = view === 'month' ? format(cursor, 'MMMM yyyy') : view === 'week' ? `${format(range.start, 'd MMM')} – ${format(range.end, 'd MMM')}` : 'Next 90 days';
 
@@ -132,7 +130,7 @@ export default function CalendarPage() {
           <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
             {nextUp.map((i) => (
               <button key={i.id} onClick={() => nav(`/item/${i.id}`)} className="card flex shrink-0 items-center gap-2.5 px-3.5 py-2 text-left">
-                <span className="h-6 w-[3px] rounded-full" style={{ background: CATEGORY_META[i.category]?.color }} />
+                <span className="h-6 w-[3px] rounded-full" style={{ background: categoryColor(i.category) }} />
                 <span><span className="block max-w-[9rem] truncate text-[14px] font-medium">{i.title}</span><span className="muted text-[12px]">{countdownLabel(i.start_date)}</span></span>
               </button>
             ))}
@@ -169,6 +167,8 @@ export default function CalendarPage() {
           <ul className="space-y-1.5">{(byDay.get(daySheet) || []).map((ev) => <li key={ev.id}><EventRow ev={ev} onClick={() => openEvent(ev)} /></li>)}</ul>
         ) : <p className="muted py-6 text-center text-[14px]">Nothing planned — a free day.</p>}
       </Modal>
+
+      {eventSheet && <EventSheet ev={eventSheet} onClose={() => setEventSheet(null)} />}
 
       {/* Options */}
       <Modal open={showOptions} onClose={() => setShowOptions(false)} title="Calendar options">
@@ -285,7 +285,8 @@ function Agenda({ byDay, onEvent }) {
 }
 
 function Legend({ colorBy, hasGcal }) {
-  const entries = colorBy === 'category' ? Object.entries(CATEGORY_META).map(([k, v]) => [k, v.color])
+  const { categories } = useApp();
+  const entries = colorBy === 'category' ? categories.map((c) => [c.name, c.color])
     : colorBy === 'status' ? Object.entries(STATUS_META).map(([k, v]) => [k, v.color])
     : [['Bucket item', '#e2555a']];
   return (
@@ -294,5 +295,38 @@ function Legend({ colorBy, hasGcal }) {
       <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: IMPORTANT_DATE_COLOR }} />Important date</span>
       {hasGcal && <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: GCAL_COLOR }} />Google Calendar</span>}
     </div>
+  );
+}
+
+/** Open an event: see it, change its date, or jump to the item / important date. */
+function EventSheet({ ev, onClose }) {
+  const nav = useNavigate();
+  const { updateItem, updateDate } = useApp();
+  const isItem = ev.type === 'item', isDate = ev.type === 'date';
+  const current = isItem ? ev.item.start_date : isDate ? ev.date.date : ev.gcal?.start;
+  const [date, setDate] = useState(current || '');
+  async function save() {
+    if (!date || date === current) return onClose();
+    if (isItem) {
+      const len = ev.item.end_date ? differenceInCalendarDays(toDate(ev.item.end_date), toDate(ev.item.start_date)) : null;
+      await updateItem(ev.item.id, { start_date: date, end_date: len !== null ? iso(addDays(toDate(date), len)) : null, ...(ev.item.status === 'Idea' ? { status: 'Planned' } : {}) }, 'Date updated');
+    } else if (isDate) await updateDate(ev.date.id, { date });
+    onClose();
+  }
+  return (
+    <Modal open onClose={onClose} title={ev.title}
+      footer={ev.type === 'gcal' ? <button className="btn-ghost flex-1" onClick={onClose}>Close</button> : <>
+        <button className="btn-soft flex-1" onClick={() => { onClose(); nav(isItem ? `/item/${ev.item.id}` : '/dates'); }}>{isItem ? 'Open dream' : 'Open dates'}</button>
+        <button className="btn-dark flex-1" onClick={save}>Save date</button>
+      </>}>
+      <div className="space-y-4">
+        <p className="muted text-[14px]">{isItem ? `${ev.item.category} · ${ev.item.status}` : isDate ? 'Important date' : 'Google Calendar (read-only)'}</p>
+        {ev.type !== 'gcal' ? (
+          <label className="block"><span className="label">{isDate && ev.date.repeats_yearly ? 'Original date (repeats yearly)' : 'Date'}</span>
+            <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+          </label>
+        ) : <p className="text-[15px]">{fmtDate(current, 'EEEE d MMMM yyyy')}{ev.gcal?.location ? ` · ${ev.gcal.location}` : ''}</p>}
+      </div>
+    </Modal>
   );
 }

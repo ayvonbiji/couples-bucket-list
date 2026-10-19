@@ -1,6 +1,6 @@
 // Client-side validation. The database CHECK constraints are the final authority;
 // these give friendly messages before a round-trip.
-import { CATEGORIES, PRIORITIES, STATUSES } from './constants.js';
+import { PRIORITIES, STATUSES } from './constants.js';
 
 const isUrl = (s) => /^https?:\/\/\S+$/i.test(s);
 const num = (v) => v === '' || v === null || v === undefined || (!Number.isNaN(Number(v)) && Number(v) >= 0);
@@ -10,7 +10,7 @@ export function validateItem(v) {
   const e = {};
   if (!v.title || !v.title.trim()) e.title = 'Give it a name';
   else if (v.title.length > 140) e.title = 'Keep the title under 140 characters';
-  if (!CATEGORIES.includes(v.category)) e.category = 'Pick a category';
+  if (!v.category && !v.category_id) e.category = 'Pick a category';
   if (!PRIORITIES.includes(v.priority)) e.priority = 'Pick a priority';
   if (!STATUSES.includes(v.status)) e.status = 'Pick a status';
   if (!num(v.est_cost)) e.est_cost = 'Cost must be a positive number';

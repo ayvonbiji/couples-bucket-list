@@ -4,7 +4,7 @@ import { CalendarDays, Home, Images, LayoutList, Ellipsis } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 
 // Secondary destinations live under "More" and keep that tab highlighted.
-const MORE_PATHS = ['/more', '/timeline', '/surprise', '/fantasy', '/dates', '/gifts', '/settings', '/trash', '/export'];
+const MORE_PATHS = ['/more', '/timeline', '/surprise', '/fantasy', '/dates', '/gifts', '/settings', '/trash', '/export', '/budget', '/categories'];
 
 const TABS = [
   { to: '/', label: 'Home', icon: Home, end: true },
@@ -17,7 +17,7 @@ const TABS = [
 export default function BottomNav() {
   const { pathname } = useLocation();
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-cream-50/90 pb-safe backdrop-blur-xl dark:border-line-dark dark:bg-ink-950/90" aria-label="Main">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t lg:hidden border-line bg-cream-50/90 pb-safe backdrop-blur-xl dark:border-line-dark dark:bg-ink-950/90" aria-label="Main">
       <ul className="mx-auto grid max-w-2xl grid-cols-5">
         {TABS.map(({ to, label, icon: Icon, end, also = [] }) => (
           <li key={to}>

@@ -2,7 +2,7 @@
 // Progressive disclosure: only title, category, status, one date-or-place and a thumbnail.
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Check, EyeOff, Heart, Trash2 } from 'lucide-react';
+import { Check, Ellipsis, EyeOff, Heart, Trash2 } from 'lucide-react';
 import { STATUS_META } from '../lib/constants.js';
 import { cn, countdownLabel, fmtDate } from '../lib/utils.js';
 import { surpriseIsActive } from '../lib/visibility.js';
@@ -29,10 +29,23 @@ export function VoteMini({ v }) {
   return <span className="muted text-[13px]" title="Your vote · partner's vote">★ {v.mine ?? '–'} · {v.theirs ?? '–'}</span>;
 }
 
+/** Round completion checkbox used on every list (bucket list and Secret Fantasy). */
+export function CompleteCheck({ done, onToggle, label, disabled }) {
+  return (
+    <button type="button" role="checkbox" aria-checked={done} aria-label={label} disabled={disabled}
+      onClick={(e) => { e.stopPropagation(); onToggle(); }} onTouchStart={(e) => e.stopPropagation()}
+      className={cn('grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-[1.5px] transition active:scale-90 disabled:opacity-40',
+        done ? 'border-[#6F9884] bg-[#6F9884] text-white' : 'border-ink-500/35 hover:border-ink-500')}>
+      {done && <Check size={14} strokeWidth={2.5} />}
+    </button>
+  );
+}
+
 /**
- * List row. Swipe left (touch) reveals Delete; long-press (or right-click) starts multi-select.
+ * List row: completion checkbox, title, category, status, one detail and a thumbnail.
+ * Swipe left reveals Delete; long-press starts multi-select; ⋯ opens Edit / Duplicate / Delete.
  */
-export function ItemRow({ item, selectMode, selected, onToggleSelect, onLongPress, onDelete }) {
+export function ItemRow({ item, selectMode, selected, onToggleSelect, onLongPress, onDelete, onToggleComplete, onMore }) {
   const nav = useNavigate();
   const [dx, setDx] = useState(0);
   const start = useRef(null);
@@ -78,13 +91,16 @@ export function ItemRow({ item, selectMode, selected, onToggleSelect, onLongPres
         className={cn('relative flex cursor-pointer select-none items-center gap-3.5 bg-white px-4 py-3 transition-transform duration-200 dark:bg-ink-900',
           selected && 'bg-rose-50 dark:bg-rose-900/20')}
       >
-        {selectMode && (
+        {selectMode ? (
           <span className={cn('grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full border-[1.5px] transition',
             selected ? 'border-rose-500 bg-rose-500 text-white' : 'border-ink-500/40')}>
             {selected && <Check size={13} strokeWidth={2.5} />}
           </span>
+        ) : onToggleComplete && (
+          <CompleteCheck done={item.status === 'Completed'} onToggle={() => onToggleComplete(item)}
+            label={item.status === 'Completed' ? `Reopen “${item.title}”` : `Mark “${item.title}” as completed`} />
         )}
-        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl">
+        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl">
           <StoredImage path={item._cover} className="h-full w-full" fallback={<CategoryPlaceholder category={item.category} size={18} />} />
         </div>
         <div className="min-w-0 flex-1">
@@ -100,6 +116,11 @@ export function ItemRow({ item, selectMode, selected, onToggleSelect, onLongPres
             {sub && <><span className="text-ink-500/50" aria-hidden>·</span><span className="muted truncate text-[13px]">{sub}</span></>}
           </div>
         </div>
+        {!selectMode && onMore && (
+          <button type="button" className="icon-btn -mr-2 h-9 w-9 shrink-0 text-ink-500" onClick={(e) => { e.stopPropagation(); onMore(item); }} onTouchStart={(e) => e.stopPropagation()} aria-label={`Actions for ${item.title}`}>
+            <Ellipsis size={18} strokeWidth={1.6} />
+          </button>
+        )}
       </div>
     </li>
   );

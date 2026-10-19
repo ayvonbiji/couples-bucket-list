@@ -1,12 +1,12 @@
 // Settings: profile, partner link, appearance, notifications, Google Calendar, sharing, data, demo tools.
 import { useState } from 'react';
-import { Bell, Copy, LogOut, Repeat, Share2 } from 'lucide-react';
+import { Bell, Copy, LogOut, Share2 } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
-import { DEMO_USERS } from '../data/localBackend.js';
 import { CURRENCIES } from '../lib/constants.js';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications.js';
 import { Avatar, ConfirmDialog, PageHeader, SegmentedControl, Toggle } from '../components/ui.jsx';
 import { errMsg } from '../lib/utils.js';
+import { validatePassword } from '../lib/auth.js';
 
 const COLORS = ['#C65D70', '#7D6B91', '#6E8FAF', '#6F9884', '#C39A62', '#B0809A', '#6B666D'];
 
@@ -17,7 +17,7 @@ function applyTheme(t) {
 }
 
 export default function SettingsPage() {
-  const { me, partner, workspace, mode, backend, updateProfile, updateWorkspace, switchDemoUser, toast } = useApp();
+  const { me, partner, workspace, mode, backend, updateProfile, updateWorkspace, changePassword, toast } = useApp();
   const [name, setName] = useState(me.display_name || '');
   const [ical, setIcal] = useState(me.gcal_ical_url || '');
   const [wsName, setWsName] = useState(workspace.name);
@@ -41,7 +41,7 @@ export default function SettingsPage() {
             <div className="min-w-0 flex-1">
               <input className="w-full bg-transparent text-[16px] font-medium focus:outline-none" maxLength={40} value={name} onChange={(e) => setName(e.target.value)}
                 onBlur={() => name.trim() && name !== me.display_name && updateProfile({ display_name: name.trim() })} aria-label="Display name" />
-              <p className="muted truncate text-[13px]">{me.email}</p>
+              <p className="muted truncate text-[13px]">@{me.username || me.email?.split('@')[0]}</p>
             </div>
           </div>
           <div className="flex items-center justify-between px-4 py-3">
@@ -58,7 +58,7 @@ export default function SettingsPage() {
           {partner ? (
             <div className="flex items-center gap-3 px-4 py-3">
               <Avatar user={partner} size={36} />
-              <div className="min-w-0 flex-1"><p className="text-[15px]">{partner.display_name}</p><p className="muted truncate text-[13px]">{partner.email}</p></div>
+              <div className="min-w-0 flex-1"><p className="text-[15px]">{partner.display_name}</p><p className="muted truncate text-[13px]">@{partner.username || partner.email?.split('@')[0]}</p></div>
               <span className="muted text-[13px]">Linked</span>
             </div>
           ) : (
@@ -122,12 +122,12 @@ export default function SettingsPage() {
           {mode === 'local' && <p className="muted px-4 pb-3 text-[13px]">Available once Supabase is connected.</p>}
         </Group>
 
+        <Group title="Security" footer="Passwords are stored only as secure hashes by the sign-in system.">
+          <PasswordForm onSave={changePassword} />
+        </Group>
+
         {mode === 'local' && (
-          <Group title="Demo mode" footer="Data lives in this browser. Switch partner to see the list from the other side — surprises, hidden gifts and private fantasies disappear.">
-            <button className="list-row" onClick={() => switchDemoUser(DEMO_USERS.find((u) => u.id !== me.id).id)}>
-              <Repeat size={18} strokeWidth={1.6} className="text-ink-500" />
-              <span className="flex-1 text-[15px]">Switch to {DEMO_USERS.find((u) => u.id !== me.id).display_name}</span>
-            </button>
+          <Group title="Demo mode" footer="Accounts and data live in this browser only. Connect Supabase for real, synced accounts.">
             <button className="list-row text-rose-700 dark:text-rose-300" onClick={() => setConfirmReset(true)}>
               <span className="flex-1 pl-[30px] text-[15px]">Reset demo data</span>
             </button>
@@ -139,6 +139,35 @@ export default function SettingsPage() {
       <ConfirmDialog open={confirmReset} title="Reset demo?" message="Deletes all demo data in this browser and starts fresh with the sample dreams." danger confirmLabel="Reset"
         onClose={() => setConfirmReset(false)} onConfirm={async () => { await backend.resetAll(); localStorage.removeItem('cbl:demoUser'); window.location.href = '/'; }} />
     </div>
+  );
+}
+
+function PasswordForm({ onSave }) {
+  const [v, setV] = useState({ current: '', next: '', confirm: '' });
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(e) {
+    e.preventDefault();
+    const err = !v.current ? 'Enter your current password' : validatePassword(v.next, { strict: true }) || (v.next !== v.confirm ? 'New passwords don’t match' : null);
+    setError(err || '');
+    if (err) return;
+    setBusy(true);
+    const ok = await onSave(v.current, v.next);
+    setBusy(false);
+    if (ok) setV({ current: '', next: '', confirm: '' });
+  }
+  return (
+    <form onSubmit={submit} className="space-y-2.5 px-4 py-4" noValidate>
+      <input className="input" type={show ? 'text' : 'password'} autoComplete="current-password" placeholder="Current password" value={v.current} onChange={(e) => setV({ ...v, current: e.target.value })} aria-label="Current password" />
+      <input className="input" type={show ? 'text' : 'password'} autoComplete="new-password" placeholder="New password" value={v.next} onChange={(e) => setV({ ...v, next: e.target.value })} aria-label="New password" />
+      <input className="input" type={show ? 'text' : 'password'} autoComplete="new-password" placeholder="Confirm new password" value={v.confirm} onChange={(e) => setV({ ...v, confirm: e.target.value })} aria-label="Confirm new password" />
+      {error && <p className="err">{error}</p>}
+      <div className="flex items-center justify-between pt-1">
+        <button type="button" className="btn-link text-[13px]" onClick={() => setShow(!show)}>{show ? 'Hide' : 'Show'} passwords</button>
+        <button className="btn-dark min-h-[40px] px-4 text-[14px]" disabled={busy}>Change password</button>
+      </div>
+    </form>
   );
 }
 

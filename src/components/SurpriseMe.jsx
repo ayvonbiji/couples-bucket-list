@@ -13,10 +13,11 @@ import { Field, Modal, MutualBadge, StoredImage } from './ui.jsx';
 import { CategoryDot, CategoryPlaceholder } from './icons.jsx';
 
 const PRESETS = [
-  { label: 'Under ₹2,000', patch: { maxCost: '2000' } },
+  { label: 'Under 2,000', patch: { maxCost: '2000' } },
+  { label: 'A few hours', patch: { timeRequired: ['Few hours'] } },
   { label: 'This weekend', patch: { when: 'weekend' } },
   { label: 'Both love it', patch: { mutualOnly: true } },
-  { label: 'Must-do', patch: { priorities: ['Must-do'] } },
+  { label: 'High priority', patch: { priorities: ['High'] } },
 ];
 
 export function SurpriseContent({ onDone, initialFilters }) {
@@ -134,7 +135,7 @@ export function SurpriseContent({ onDone, initialFilters }) {
           {activeFilterCount(filters) > 0 && <span className="muted text-[13px]">{activeFilterCount(filters)} on</span>}
           <ChevronRight size={16} className="chev text-ink-500 transition-transform" />
         </summary>
-        <div className="border-t border-line px-4 py-4 dark:border-line-dark"><FilterFields value={filters} onChange={setFilters} showStatus={false} /></div>
+        <div className="border-t border-line px-4 py-4 dark:border-line-dark"><FilterFields value={filters} onChange={setFilters} showStatus={false} compact /></div>
       </details>
       {pool.length === 0 ? (
         <p className="muted text-[14px]">Nothing matches these filters. <button className="btn-link" onClick={() => setFilters(EMPTY_FILTERS)}>Clear filters</button></p>

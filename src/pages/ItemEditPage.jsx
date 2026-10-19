@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { CalendarDays, ImagePlus, Lock, MapPin, Plus, SlidersHorizontal, Wallet, X } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
-import { CATEGORIES, CURRENCIES, PRIORITIES, STATUSES } from '../lib/constants.js';
+import { CURRENCIES, PRIORITIES, STATUSES, TIME_REQUIRED } from '../lib/constants.js';
 import { toNum, validateItem } from '../lib/validation.js';
 import { Disclosure, EmptyState, Field, PageHeader, Segmented, SegmentedControl, Spinner, Toggle } from '../components/ui.jsx';
 import TagInput from '../components/TagInput.jsx';
@@ -18,12 +18,12 @@ export default function ItemEditPage() {
   const { id } = useParams();
   const { search } = useLocation();
   const nav = useNavigate();
-  const { data, me, partner, workspace, createItem, updateItem } = useApp();
+  const { data, me, partner, workspace, categories, createItem, updateItem } = useApp();
   const existing = id ? data.items.find((i) => i.id === id) : null;
   const preset = useMemo(() => Object.fromEntries(new URLSearchParams(search)), [search]);
 
   const [v, setV] = useState(() => existing ? { ...existing, reminder_at: toLocalInput(existing.reminder_at) } : {
-    title: '', description: '', category: preset.category || 'Experiences', priority: 'Someday',
+    title: '', description: '', category: preset.category || categories[0]?.name || 'General', subcategory: '', notes: '', time_required: '', actual_cost: '', priority: 'Medium',
     status: preset.date ? 'Planned' : 'Idea', timeframe: '', start_date: preset.date || '', end_date: '',
     location_name: '', lat: null, lng: null, est_cost: '', currency: workspace.currency, owner_user_id: null,
     added_by_both: false, tags: [], is_surprise: false, reveal_date: '', savings_target: '', savings_saved: '',
@@ -63,7 +63,8 @@ export default function ItemEditPage() {
     }
     setBusy(true);
     const row = {
-      title: v.title.trim(), description: v.description?.trim() || null, category: v.category, priority: v.priority, status: v.status,
+      title: v.title.trim(), description: v.description?.trim() || null, category: v.category, subcategory: v.subcategory?.trim() || null,
+      notes: v.notes?.trim() || null, time_required: v.time_required || null, actual_cost: toNum(v.actual_cost), priority: v.priority, status: v.status,
       timeframe: v.timeframe?.trim() || null, start_date: v.start_date || null, end_date: v.end_date || null,
       location_name: v.location_name?.trim() || null, lat: v.lat ?? null, lng: v.lng ?? null,
       est_cost: toNum(v.est_cost), currency: v.currency, owner_user_id: v.owner_user_id || null, added_by_both: v.added_by_both,
@@ -94,16 +95,18 @@ export default function ItemEditPage() {
             <input className="w-full border-0 border-b border-line bg-transparent px-0 pb-2 pt-1 text-[22px] font-medium placeholder:text-ink-500/60 focus:border-ink-500 focus:outline-none focus-visible:ring-0 dark:border-line-dark"
               autoFocus={!existing} maxLength={140} placeholder="What do you dream of doing?" value={v.title} onChange={(e) => set({ title: e.target.value })} aria-invalid={!!errors.title} aria-label="Title" />
           </Field>
-          <textarea className="input min-h-[84px] resize-none" maxLength={5000} placeholder="Notes — why you want it, ideas, details" value={v.description || ''} onChange={(e) => set({ description: e.target.value })} aria-label="Description" />
+          <textarea className="input min-h-[72px] resize-none" maxLength={5000} placeholder="Short description" value={v.description || ''} onChange={(e) => set({ description: e.target.value })} aria-label="Description" />
 
           <div>
             <span className="label">Category</span>
             <Segmented value={v.category} onChange={(category) => set({ category })}
-              options={CATEGORIES.map((c) => ({ value: c, label: <span className="inline-flex items-center gap-1.5"><CategoryIcon category={c} size={14} /> {c}</span> }))} />
+              options={categories.map((c) => ({ value: c.name, label: <span className="inline-flex items-center gap-1.5"><CategoryIcon category={c.name} size={14} /> {c.name}</span> }))} />
+            {errors.category && <p className="err">{errors.category}</p>}
+            <input className="input mt-2 py-2 text-[14px]" maxLength={60} placeholder="Subcategory (optional)" value={v.subcategory || ''} onChange={(e) => set({ subcategory: e.target.value })} aria-label="Subcategory" />
           </div>
           <div>
             <span className="label">Status</span>
-            <SegmentedControl value={v.status} onChange={(status) => set({ status })} options={STATUSES.map((s) => ({ value: s, label: s === 'In Progress' ? 'Doing' : s === 'Completed' ? 'Done' : s }))} />
+            <SegmentedControl value={v.status} onChange={(status) => set({ status })} options={STATUSES.map((s) => ({ value: s, label: { 'In Progress': 'Doing', 'On Hold': 'On hold', Completed: 'Done' }[s] || s }))} />
           </div>
           <div>
             <span className="label">Priority</span>
@@ -119,6 +122,10 @@ export default function ItemEditPage() {
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Start"><input type="date" className="input" value={v.start_date || ''} onChange={(e) => set({ start_date: e.target.value })} /></Field>
                 <Field label="End" error={errors.end_date}><input type="date" className="input" value={v.end_date || ''} min={v.start_date || undefined} onChange={(e) => set({ end_date: e.target.value })} /></Field>
+              </div>
+              <div>
+                <span className="label">Time required</span>
+                <Segmented value={v.time_required || ''} onChange={(time_required) => set({ time_required })} options={[{ value: '', label: 'Not sure' }, ...TIME_REQUIRED]} />
               </div>
               <Field label="Reminder" hint="A gentle nudge on this device"><input type="datetime-local" className="input" value={v.reminder_at || ''} onChange={(e) => set({ reminder_at: e.target.value })} /></Field>
             </div>
@@ -139,7 +146,7 @@ export default function ItemEditPage() {
             </div>
           </Disclosure>
 
-          <Disclosure title="Budget" icon={Wallet} defaultOpen={has('est_cost', 'savings_target')}>
+          <Disclosure title="Budget" icon={Wallet} defaultOpen={has('est_cost', 'savings_target', 'actual_cost')}>
             <div className="space-y-4">
               <div className="grid grid-cols-[1fr_96px] gap-2">
                 <Field label="Estimated cost" error={errors.est_cost}><input type="number" min="0" inputMode="decimal" className="input" value={v.est_cost ?? ''} onChange={(e) => set({ est_cost: e.target.value })} /></Field>
@@ -149,6 +156,7 @@ export default function ItemEditPage() {
                 <Field label="Savings goal" error={errors.savings_target}><input type="number" min="0" inputMode="decimal" className="input" value={v.savings_target ?? ''} onChange={(e) => set({ savings_target: e.target.value })} /></Field>
                 <Field label="Saved so far" error={errors.savings_saved}><input type="number" min="0" inputMode="decimal" className="input" value={v.savings_saved ?? ''} onChange={(e) => set({ savings_saved: e.target.value })} /></Field>
               </div>
+              <Field label="Actual cost" hint="Fill in once you know what it really cost"><input type="number" min="0" inputMode="decimal" className="input" value={v.actual_cost ?? ''} onChange={(e) => set({ actual_cost: e.target.value })} /></Field>
             </div>
           </Disclosure>
 
@@ -169,8 +177,9 @@ export default function ItemEditPage() {
             </div>
           </Disclosure>
 
-          <Disclosure title={existing ? 'Tags' : 'Tags, photos & checklist'} icon={SlidersHorizontal} defaultOpen={has('tags')}>
+          <Disclosure title={existing ? 'Notes & tags' : 'Notes, tags, photos & checklist'} icon={SlidersHorizontal} defaultOpen={has('tags', 'notes')}>
             <div className="space-y-5">
+              <Field label="Notes"><textarea className="input min-h-[80px] resize-none" maxLength={5000} placeholder="Ideas, details, things to remember" value={v.notes || ''} onChange={(e) => set({ notes: e.target.value })} /></Field>
               <div><span className="label">Tags</span><TagInput value={v.tags} onChange={(tags) => set({ tags })} /></div>
               {!existing && (
                 <>
@@ -190,7 +199,7 @@ export default function ItemEditPage() {
                     </div>
                   </div>
                   <div>
-                    <span className="label">Checklist</span>
+                    <span className="label">Preparation checklist</span>
                     {subtasks.length > 0 && (
                       <ul className="mb-2 space-y-1">
                         {subtasks.map((s, k) => (

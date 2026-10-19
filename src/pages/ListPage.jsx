@@ -9,17 +9,24 @@ import { FilterSheet, activeFilterCount } from '../components/Filters.jsx';
 import { ItemCard, ItemRow } from '../components/ItemViews.jsx';
 import { EmptyState, PageHeader, SegmentedControl } from '../components/ui.jsx';
 import DeleteItemDialog from '../components/DeleteItemDialog.jsx';
+import ItemActionSheet, { useCompleteToggle } from '../components/ItemActions.jsx';
 import { cn } from '../lib/utils.js';
 
 const VIEW_KEY = 'cbl:listView';
-const STATUS_TABS = ['All', 'Idea', 'Planned', 'In Progress', 'Completed'];
+const STATUS_TABS = ['All', 'Idea', 'Planned', 'In Progress', 'On Hold', 'Completed'];
 
 export default function ListPage() {
-  const { me } = useApp();
+  const { me, categories } = useApp();
   const nav = useNavigate();
   const [params] = useSearchParams();
   const all = useDecoratedItems();
-  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS, statuses: params.get('status') ? [params.get('status')] : [] }));
+  const [filters, setFilters] = useState(() => ({
+    ...EMPTY_FILTERS,
+    statuses: params.get('status') ? [params.get('status')] : [],
+    categories: params.get('category') ? [params.get('category')] : [],
+  }));
+  const [acting, setActing] = useState(null);
+  const toggleComplete = useCompleteToggle();
   const [sort, setSort] = useState(params.get('sort') || 'mutual');
   const [view, setView] = useState(() => { const v = localStorage.getItem(VIEW_KEY); return v === 'card' ? 'grid' : v || 'list'; });
   const [showFilters, setShowFilters] = useState(false);
@@ -28,7 +35,8 @@ export default function ListPage() {
   const [deleting, setDeleting] = useState(null);
 
   const items = useMemo(() => applySort(applyFilters(all, filters, me.id), sort), [all, filters, sort, me.id]);
-  const nActive = activeFilterCount(filters) - (filters.statuses.length === 1 ? 1 : 0);
+  const nActive = activeFilterCount(filters) - (filters.statuses.length === 1 ? 1 : 0) - (filters.categories.length === 1 ? 1 : 0);
+  const currentCat = filters.categories.length === 1 ? filters.categories[0] : '';
   const currentTab = filters.statuses.length === 1 ? filters.statuses[0] : filters.statuses.length ? null : 'All';
 
   const setViewPersist = (v) => {
@@ -49,7 +57,7 @@ export default function ListPage() {
           <button className="btn-danger min-h-[36px] px-4 text-[14px]" disabled={!selected.size} onClick={() => setDeleting([...selected])}><Trash2 size={15} strokeWidth={1.75} /> Delete</button>
         </header>
       ) : (
-        <PageHeader title="Bucket List" subtitle={`${all.length} dream${all.length === 1 ? '' : 's'}`} actions={<>
+        <PageHeader title={currentCat || 'Bucket List'} subtitle={`${items.length} of ${all.length} dream${all.length === 1 ? '' : 's'}`} actions={<>
           <button className="icon-btn" onClick={() => startSelect()} aria-label="Select items"><CheckCircle2 size={20} strokeWidth={1.6} /></button>
           <button className="icon-btn" onClick={() => nav('/item/new')} aria-label="New dream"><Plus size={22} strokeWidth={1.6} /></button>
         </>} />
@@ -77,14 +85,20 @@ export default function ListPage() {
           ))}
         </div>
 
-        {/* Sort + view */}
+        {/* Category · sort · view */}
         <div className="flex items-center justify-between gap-3">
-          <label className="relative flex items-center gap-1.5 text-[14px] text-ink-600 dark:text-[#B9B3BA]">
-            <ArrowUpDown size={14} strokeWidth={1.75} />
-            <select className="appearance-none bg-transparent pr-1 focus:outline-none" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort by">
-              {Object.entries(SORTS).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
+          <div className="flex min-w-0 flex-col gap-1 text-[14px] text-ink-600 dark:text-[#B9B3BA] sm:flex-row sm:gap-4">
+            <select className="max-w-[11rem] truncate bg-transparent focus:outline-none" value={currentCat} onChange={(e) => setFilters({ ...filters, categories: e.target.value ? [e.target.value] : [] })} aria-label="Category">
+              <option value="">All categories</option>
+              {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
-          </label>
+            <label className="flex items-center gap-1.5">
+              <ArrowUpDown size={13} strokeWidth={1.75} />
+              <select className="appearance-none bg-transparent pr-1 focus:outline-none" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort by">
+                {Object.entries(SORTS).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
+              </select>
+            </label>
+          </div>
           <SegmentedControl className="w-[132px]" value={view} onChange={setViewPersist}
             options={[{ value: 'list', label: <ListIcon size={16} strokeWidth={1.6} className="mx-auto" aria-label="List view" /> }, { value: 'grid', label: <LayoutGrid size={16} strokeWidth={1.6} className="mx-auto" aria-label="Grid view" /> }, { value: 'map', label: <MapIcon size={16} strokeWidth={1.6} className="mx-auto" aria-label="Map view" /> }]} />
         </div>
@@ -111,15 +125,16 @@ export default function ListPage() {
           <ul className="list-group hairline mb-2">
             {items.map((i) => (
               <ItemRow key={i.id} item={i} selectMode={selectMode} selected={selected.has(i.id)} onToggleSelect={toggleSel}
-                onLongPress={startSelect} onDelete={(it) => setDeleting([it.id])} />
+                onLongPress={startSelect} onDelete={(it) => setDeleting([it.id])} onToggleComplete={toggleComplete} onMore={setActing} />
             ))}
           </ul>
         )}
-        {!selectMode && view === 'list' && items.length > 0 && <p className="muted pb-4 text-center text-[12px]">Swipe left to delete · press and hold to select</p>}
+        {!selectMode && view === 'list' && items.length > 0 && <p className="muted pb-4 text-center text-[12px]">Tick to complete · swipe left to delete · press and hold to select</p>}
       </div>
 
       <FilterSheet open={showFilters} onClose={() => setShowFilters(false)} value={filters} onChange={setFilters} />
       <DeleteItemDialog ids={deleting} onClose={() => setDeleting(null)} onDone={exitSelect} />
+      {acting && <ItemActionSheet item={acting} onClose={() => setActing(null)} />}
     </div>
   );
 }

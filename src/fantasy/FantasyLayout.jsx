@@ -75,7 +75,7 @@ function LockScreen({ onUnlock }) {
   );
 }
 
-const EMPTY = { fantasies: [], fantasy_responses: [], fantasy_notes: [], fantasy_comments: [] };
+const EMPTY = { fantasies: [], fantasy_responses: [], fantasy_notes: [], fantasy_comments: [], fantasy_photos: [] };
 
 function FantasyProvider({ children, lock }) {
   const { backend, workspace: ws, me, membership, toast } = useApp();
@@ -92,7 +92,8 @@ function FantasyProvider({ children, lock }) {
     reload();
     let t;
     const unsub = backend.subscribeFantasies(ws.id, () => { clearTimeout(t); t = setTimeout(reload, 300); });
-    return () => { unsub?.(); clearTimeout(t); setData(EMPTY); }; // drop everything from memory on exit
+    // Drop everything from memory (and any cached image URLs) on exit or lock.
+    return () => { unsub?.(); clearTimeout(t); setData(EMPTY); backend.forgetUrls?.('fantasy'); };
   }, [backend, ws.id, reload]);
 
   const run = useCallback(async (fn, msg) => {
@@ -123,7 +124,7 @@ function FantasyProvider({ children, lock }) {
     return {
       reload,
       create: (values, { notes, file } = {}) => run(async () => {
-        const f = await backend.insert('fantasies', { ...base, ...values, status: 'private', created_by: me.id });
+        const f = await backend.insert('fantasies', { ...base, ...values, visibility: 'private', status: values.status === 'agreed' ? 'saved' : values.status || 'idea', created_by: me.id });
         if (file) await backend.update('fantasies', { id: f.id }, { image_path: await uploadImage(f.id, file) });
         if (notes?.trim()) await backend.upsert('fantasy_notes', { ...base, fantasy_id: f.id, user_id: me.id, notes: notes.trim(), updated_at: new Date().toISOString() }, 'fantasy_id,user_id');
         await reload();
@@ -139,16 +140,38 @@ function FantasyProvider({ children, lock }) {
         await updateFantasy(id, { ...values, image_path });
       }, 'Saved'),
 
-      share: (id) => run(() => updateFantasy(id, { status: 'shared' }), 'Shared with your partner'),
-      unshare: (id) => run(() => updateFantasy(id, { status: 'private' }), 'Private again'),
-      setStatus: (id, status) => run(() => updateFantasy(id, { status, ...(status === 'completed' ? { completed_at: new Date().toISOString().slice(0, 10) } : {}) })),
+      share: (id) => run(() => updateFantasy(id, { visibility: 'shared' }), 'Shared with your partner'),
+      unshare: (id) => run(() => updateFantasy(id, { visibility: 'private' }), 'Private again'),
+      /** Any status can be chosen directly; consent rules still apply. */
+      setStatus: (id, status) => run(() => updateFantasy(id, { status })),
+      saveExperience: (id, experience_note, experience_rating) => run(() => updateFantasy(id, { experience_note: experience_note?.trim() || null, experience_rating: experience_rating || null }), 'Saved'),
+      /** Hide from my own lists (or bring back) — "remove my participation". */
+      setHiddenForMe: (id, hidden) => run(async () => {
+        const mine = responsesFor(id).find((r) => r.user_id === me.id) || {};
+        await backend.upsert('fantasy_responses', { ...base, fantasy_id: id, user_id: me.id, reaction: mine.reaction ?? null, comfortable: mine.comfortable ?? false, boundaries: mine.boundaries ?? null, allow_photos: mine.allow_photos ?? false, hidden, updated_at: new Date().toISOString() }, 'fantasy_id,user_id');
+        await reload();
+      }, hidden ? 'Hidden from your list' : 'Back on your list'),
+
+      addPhotos: (id, files) => run(async () => {
+        for (const file of files) {
+          const path = await uploadImage(id, file);
+          await backend.insert('fantasy_photos', { ...base, fantasy_id: id, uploaded_by: me.id, storage_path: path });
+        }
+        await reload();
+      }, 'Photos saved'),
+      deletePhoto: (photo) => run(async () => {
+        await backend.removeFiles('fantasy', [photo.storage_path]).catch(() => {});
+        await backend.remove('fantasy_photos', { id: photo.id });
+        await reload();
+      }),
       setWishlist: (id, on) => run(() => updateFantasy(id, { on_wishlist: on }), on ? 'Added to your wishlist' : 'Removed from your wishlist'),
       setPlannedDate: (id, planned_date) => run(() => updateFantasy(id, { planned_date: planned_date || null })),
 
       /** My reaction / comfort / boundaries. Withdrawing consent unwinds "agreed" and the wishlist. */
       respond: (id, patch) => run(async () => {
         const mine = responsesFor(id).find((r) => r.user_id === me.id) || {};
-        const row = { ...base, fantasy_id: id, user_id: me.id, reaction: mine.reaction ?? null, comfortable: mine.comfortable ?? false, boundaries: mine.boundaries ?? null, ...patch, updated_at: new Date().toISOString() };
+        const row = { ...base, fantasy_id: id, user_id: me.id, reaction: mine.reaction ?? null, comfortable: mine.comfortable ?? false, boundaries: mine.boundaries ?? null,
+          hidden: mine.hidden ?? false, allow_photos: mine.allow_photos ?? false, ...patch, updated_at: new Date().toISOString() };
         await backend.upsert('fantasy_responses', row, 'fantasy_id,user_id');
         if (backend.mode === 'local') {
           // Demo Mode: mirror the database trigger.
@@ -169,7 +192,8 @@ function FantasyProvider({ children, lock }) {
 
       remove: (id) => run(async () => {
         const f = find(id);
-        if (f?.image_path) await backend.removeFiles('fantasy', [f.image_path]).catch(() => {});
+        const paths = [f?.image_path, ...data.fantasy_photos.filter((p) => p.fantasy_id === id).map((p) => p.storage_path)].filter(Boolean);
+        if (paths.length) await backend.removeFiles('fantasy', paths).catch(() => {});
         await backend.remove('fantasies', { id });
         await reload();
       }, 'Deleted'),

@@ -1,20 +1,24 @@
-// One fantasy: the entry, private notes, sharing, partner reactions, consent and discussion.
+// One fantasy: entry, status checklist, sharing, partner responses, consent, experience,
+// photos (only with both partners' agreement), private notes and discussion.
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Check, ChevronLeft, Lock, MessageCircle, Pencil, Send, Shield, Trash2 } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Check, ChevronLeft, EyeOff, ImagePlus, Lock, MessageCircle, Pencil, Send, Shield, Trash2, X } from 'lucide-react';
 import { useApp } from '../store/AppStore.jsx';
 import { useFantasy } from './FantasyLayout.jsx';
-import { REACTIONS, hasConsent, hasMutualInterest, reactionLabel, statusLabel } from '../lib/fantasy.js';
+import { FANTASY_STATUSES, REACTIONS, hasConsent, hasMutualInterest, photosAllowed, reactionLabel, statusBlockedReason, statusLabel } from '../lib/fantasy.js';
 import { cn, fmtDate, timeAgo } from '../lib/utils.js';
-import { Avatar, ConfirmDialog, Disclosure, EmptyState, StoredImage, Toggle } from '../components/ui.jsx';
+import { Avatar, ConfirmDialog, Disclosure, EmptyState, Modal, Stars, StoredImage, Toggle } from '../components/ui.jsx';
 
 export default function FantasyDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { me, partner, personLabel } = useApp();
+  const [params, setParams] = useSearchParams();
+  const { me, partner, personLabel, toast } = useApp();
   const f = useFantasy();
   const fantasy = f.data.fantasies.find((x) => x.id === id);
   const [confirm, setConfirm] = useState(null); // 'share' | 'unshare' | 'delete'
+  const [experience, setExperience] = useState(false);
+  useEffect(() => { if (params.get('experience')) { setExperience(true); setParams({}, { replace: true }); } }, [params, setParams]);
 
   if (!fantasy) {
     return (
@@ -26,14 +30,23 @@ export default function FantasyDetailPage() {
   }
 
   const mine = fantasy.created_by === me.id;
-  const isPrivate = fantasy.status === 'private';
+  const isPrivate = fantasy.visibility === 'private';
   const responses = f.responsesFor(id);
   const myResponse = responses.find((r) => r.user_id === me.id) || {};
   const otherResponse = responses.find((r) => r.user_id !== me.id) || null;
   const consent = hasConsent(responses, f.memberIds);
   const mutual = hasMutualInterest(fantasy, responses);
+  const canPhotos = photosAllowed(fantasy, responses, f.memberIds, me.id);
+  const photos = f.data.fantasy_photos.filter((p) => p.fantasy_id === id);
   const comments = f.data.fantasy_comments.filter((c) => c.fantasy_id === id).sort((a, b) => a.created_at.localeCompare(b.created_at));
   const otherName = partner?.display_name || 'Your partner';
+
+  async function chooseStatus(s) {
+    if (s === fantasy.status) return;
+    const reason = statusBlockedReason(fantasy, s, responses, f.memberIds);
+    if (reason) return toast(reason, 'error');
+    if ((await f.setStatus(id, s)) && s === 'completed') setExperience(true);
+  }
 
   return (
     <div className="pb-12">
@@ -43,12 +56,13 @@ export default function FantasyDetailPage() {
       </div>
 
       <article className="space-y-8 px-6 pt-2">
-        {/* Entry — journal style */}
         <header>
-          <p className="muted text-[13px]">{fantasy.category} · {statusLabel(fantasy.status)}{isPrivate && ' · only you'}</p>
+          <p className="muted text-[13px]">{fantasy.category} · {statusLabel(fantasy.status)} · {isPrivate ? 'only you' : 'shared'}</p>
           <h1 className="title-serif mt-2 text-[38px] leading-[1.08]">{fantasy.title}</h1>
-          <p className="muted mt-2 text-[13px]">
-            {mine ? 'Written by you' : `From ${personLabel(fantasy.created_by)}`} · {fmtDate(fantasy.created_at, 'd MMMM yyyy')}
+          <p className="muted mt-2 text-[13px] leading-relaxed">
+            {mine ? 'Written by you' : `From ${personLabel(fantasy.created_by)}`} · added {fmtDate(fantasy.created_at, 'd MMM yyyy')}
+            {fantasy.planned_date && ` · planned ${fmtDate(fantasy.planned_date, 'd MMM yyyy')}`}
+            {fantasy.completed_at && ` · completed ${fmtDate(fantasy.completed_at, 'd MMM yyyy')}`}
             {fantasy.interest_level ? ` · interest ${fantasy.interest_level}/5` : ''}
           </p>
         </header>
@@ -56,7 +70,7 @@ export default function FantasyDetailPage() {
         {fantasy.image_path && <StoredImage bucket="fantasy" path={fantasy.image_path} className="aspect-[4/3] w-full rounded-2xl" />}
         {fantasy.description && <p className="title-serif whitespace-pre-wrap text-[21px] leading-[1.45] text-ink-700 dark:text-[#D4CFD5]">{fantasy.description}</p>}
 
-        {/* Sharing */}
+        {/* Sharing (author only) */}
         {mine && (
           <section className="list-group px-4 py-4">
             {isPrivate ? (
@@ -73,7 +87,39 @@ export default function FantasyDetailPage() {
           </section>
         )}
 
-        {/* Partner reactions */}
+        {/* Status — choose any directly */}
+        <section className="space-y-2.5">
+          <h2 className="section-title">Status</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {FANTASY_STATUSES.map((s) => {
+              const blocked = statusBlockedReason(fantasy, s.value, responses, f.memberIds);
+              return (
+                <button key={s.value} type="button" aria-pressed={fantasy.status === s.value} aria-disabled={Boolean(blocked)} title={blocked || undefined}
+                  className={cn('chip-toggle', blocked && 'opacity-40')} onClick={() => chooseStatus(s.value)}>
+                  {fantasy.status === s.value && <Check size={12} strokeWidth={2.5} />}{s.label}
+                </button>
+              );
+            })}
+          </div>
+          {!isPrivate && !consent && <p className="muted text-[13px]">Agreed, planned, in progress and completed need both of you to say you’re comfortable.</p>}
+        </section>
+
+        {/* Experience */}
+        {fantasy.status === 'completed' && (
+          <section>
+            <div className="mb-2.5 flex items-baseline justify-between">
+              <h2 className="section-title">How was the experience?</h2>
+              <button className="btn-link text-[13px]" onClick={() => setExperience(true)}>{fantasy.experience_note ? 'Edit' : 'Add'}</button>
+            </div>
+            <div className="list-group px-4 py-4">
+              {fantasy.experience_note ? <p className="title-serif whitespace-pre-wrap text-[20px] italic leading-snug">“{fantasy.experience_note}”</p>
+                : <button className="muted text-left text-[14px]" onClick={() => setExperience(true)}>A short note about how it went — optional, only for the two of you.</button>}
+              {fantasy.experience_rating && <div className="mt-3"><Stars value={fantasy.experience_rating} readOnly size={14} /></div>}
+            </div>
+          </section>
+        )}
+
+        {/* Responses */}
         {!isPrivate && (
           <section className="space-y-3">
             <h2 className="section-title">Responses</h2>
@@ -91,7 +137,7 @@ export default function FantasyDetailPage() {
             )}
             {mine && (
               <p className="text-[15px]">
-                {otherResponse?.reaction ? <>{otherName}: <span className="font-medium">{reactionLabel(otherResponse.reaction)}</span></> : <span className="muted">{otherName} hasn’t responded yet.</span>}
+                {otherResponse?.reaction ? <>{otherName}: <span className="font-medium">{reactionLabel(otherResponse.reaction)}</span></> : <span className="muted">{otherName} hasn’t responded yet — and doesn’t have to.</span>}
               </p>
             )}
             {otherResponse?.boundaries && (
@@ -112,72 +158,113 @@ export default function FantasyDetailPage() {
               <BoundariesEditor value={myResponse.boundaries || ''} onSave={(b) => f.respond(id, { boundaries: b.trim() || null })} />
               <div className="flex items-center gap-2 px-4 py-3 text-[13px]">
                 <Shield size={14} strokeWidth={1.6} className="shrink-0 text-ink-500" />
-                <span className="muted">
-                  {consent ? 'You’re both comfortable.' : `“Agreed” needs both of you to say you’re comfortable${responses.some((r) => r.reaction === 'not_comfortable') ? ', and nobody to be uncomfortable' : ''}.`}
-                </span>
+                <span className="muted">{consent ? 'You’re both comfortable.' : 'Nothing moves to agreed until you both say you’re comfortable.'}</span>
               </div>
             </div>
           </section>
         )}
 
-        {/* Status & wishlist */}
+        {/* Wishlist & date */}
         {!isPrivate && (
-          <section className="space-y-3">
-            <h2 className="section-title">Where we are</h2>
-            <div className="grid grid-cols-3 gap-2">
-              {[['discussing', 'Discussing'], ['agreed', 'Agreed'], ['completed', 'Completed']].map(([s, l]) => {
-                const needsConsent = s !== 'discussing' && !consent && fantasy.status !== s;
-                return (
-                  <button key={s} disabled={needsConsent} aria-pressed={fantasy.status === s}
-                    onClick={() => f.setStatus(id, fantasy.status === s ? 'shared' : s)}
-                    className={cn('min-h-[44px] rounded-xl border text-[14px] transition disabled:opacity-35',
-                      fantasy.status === s ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-900/25 dark:text-rose-300' : 'border-line dark:border-line-dark')}>
-                    {fantasy.status === s && <Check size={13} strokeWidth={2} className="mr-1 inline" />}{l}
-                  </button>
-                );
-              })}
+          <section className="list-group hairline">
+            <div className="px-4 py-2">
+              <Toggle checked={fantasy.on_wishlist} onChange={(on) => (!on || mutual ? f.setWishlist(id, on) : toast('Available once you’re both interested', 'error'))}
+                label="On our wishlist" description={fantasy.on_wishlist ? 'Either of you can remove it.' : mutual ? 'You’re both interested.' : `Available once ${mine ? otherName : 'you'} respond${mine ? 's' : ''} with Interested or Curious.`} />
             </div>
-            <div className="list-group hairline">
-              <div className="px-4 py-2">
-                <Toggle checked={fantasy.on_wishlist} onChange={(on) => (!on || mutual) && f.setWishlist(id, on)}
-                  label="On our wishlist" description={fantasy.on_wishlist ? 'Either of you can remove it.' : mutual ? 'You’re both interested.' : `Available once ${mine ? otherName : 'you'} respond${mine ? 's' : ''} with Love this or Curious.`} />
-              </div>
-              {(fantasy.on_wishlist || ['agreed', 'completed'].includes(fantasy.status)) && (
-                <label className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-[15px]">Planned for</span>
-                  <input type="date" className="bg-transparent text-right text-[15px] text-ink-600 focus:outline-none dark:text-[#B9B3BA]" value={fantasy.planned_date || ''} onChange={(e) => f.setPlannedDate(id, e.target.value)} aria-label="Planned date" />
-                </label>
-              )}
-            </div>
+            <label className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-[15px]">Target date</span>
+              <input type="date" className="bg-transparent text-right text-[15px] text-ink-600 focus:outline-none dark:text-[#B9B3BA]" value={fantasy.planned_date || ''} onChange={(e) => f.setPlannedDate(id, e.target.value)} aria-label="Target date" />
+            </label>
           </section>
         )}
 
-        {/* Private notes */}
+        {/* Photos — only with agreement */}
+        <Disclosure title="Photos" icon={ImagePlus} meta={photos.length || (isPrivate ? 'only you' : '')}>
+          <PhotosSection fantasy={fantasy} isPrivate={isPrivate} myResponse={myResponse} otherResponse={otherResponse} canPhotos={canPhotos} photos={photos} otherName={otherName} />
+        </Disclosure>
+
         <Disclosure title="My private notes" icon={Lock} meta="only you">
           <NotesEditor fantasyId={id} />
         </Disclosure>
 
-        {/* Discussion */}
         {!isPrivate && (
-          <Disclosure title="Talk about it" icon={MessageCircle} meta={comments.length || ''} defaultOpen={comments.length > 0}>
+          <Disclosure title="Shared discussion" icon={MessageCircle} meta={comments.length || ''} defaultOpen={comments.length > 0}>
             <Discussion fantasyId={id} comments={comments} />
           </Disclosure>
         )}
+
+        {/* My participation */}
+        <section className="list-group px-4 py-1">
+          <Toggle checked={Boolean(myResponse.hidden)} onChange={(on) => f.setHiddenForMe(id, on)}
+            label="Hide from my list" description="Step back from this without deleting it. You can bring it back any time." />
+        </section>
 
         {mine && (
           <button className="btn-ghost w-full text-rose-700 dark:text-rose-300" onClick={() => setConfirm('delete')}><Trash2 size={16} strokeWidth={1.6} /> Delete</button>
         )}
       </article>
 
+      {experience && <ExperienceSheet fantasy={fantasy} onClose={() => setExperience(false)} />}
       <ConfirmDialog open={confirm === 'share'} title={`Share with ${otherName}?`} confirmLabel="Share"
-        message={`${otherName} will be able to read this entry and respond. Your personal notes stay private. You can make it private again at any time.`}
+        message={`${otherName} will be able to read this entry and respond. Sharing doesn’t mean agreeing — each of you responds in your own time. Your personal notes stay private, and you can make it private again at any time.`}
         onClose={() => setConfirm(null)} onConfirm={() => f.share(id)} />
       <ConfirmDialog open={confirm === 'unshare'} title="Make private again?" confirmLabel="Make private"
         message={`${otherName} will no longer see this entry. It also comes off your wishlist.`}
         onClose={() => setConfirm(null)} onConfirm={() => f.unshare(id)} />
       <ConfirmDialog open={confirm === 'delete'} title="Delete this entry?" danger confirmLabel="Delete"
-        message="It will be deleted for both of you, with its responses, notes and image. This can’t be undone."
+        message="It will be deleted for both of you, with its responses, notes and photos. This can’t be undone."
         onClose={() => setConfirm(null)} onConfirm={async () => { await f.remove(id); nav('/fantasy', { replace: true }); }} />
+    </div>
+  );
+}
+
+function ExperienceSheet({ fantasy, onClose }) {
+  const { saveExperience } = useFantasy();
+  const [note, setNote] = useState(fantasy.experience_note || '');
+  const [rating, setRating] = useState(fantasy.experience_rating || 0);
+  return (
+    <Modal open onClose={onClose} title="How was the experience?"
+      footer={<><button className="btn-ghost flex-1" onClick={onClose}>Later</button>
+        <button className="btn-dark flex-1" onClick={async () => { if (await saveExperience(fantasy.id, note, rating)) onClose(); }}>Save</button></>}>
+      <div className="space-y-4">
+        <p className="muted text-[14px]">Optional. What you enjoyed, what you’d like to remember. You can edit this later.</p>
+        <textarea className="input min-h-[140px] resize-none" maxLength={5000} value={note} onChange={(e) => setNote(e.target.value)} aria-label="Experience note" />
+        <div><span className="label">Rating (optional)</span><Stars value={rating} onChange={setRating} label="Experience rating" /></div>
+      </div>
+    </Modal>
+  );
+}
+
+function PhotosSection({ fantasy, isPrivate, myResponse, otherResponse, canPhotos, photos, otherName }) {
+  const f = useFantasy();
+  const { me } = useApp();
+  return (
+    <div className="space-y-3">
+      {!isPrivate && (
+        <>
+          <Toggle checked={Boolean(myResponse.allow_photos)} onChange={(on) => f.respond(fantasy.id, { allow_photos: on })}
+            label="I’m OK with keeping photos" description={otherResponse?.allow_photos ? `${otherName} is OK with it too.` : `${otherName} also needs to agree.`} />
+          {!canPhotos && <p className="muted flex items-center gap-2 text-[13px]"><EyeOff size={13} /> Photos can be added once you both agree.</p>}
+        </>
+      )}
+      {photos.length > 0 && (
+        <div className="grid grid-cols-3 gap-1">
+          {photos.map((p) => (
+            <div key={p.id} className="relative aspect-square overflow-hidden rounded-lg">
+              <StoredImage bucket="fantasy" path={p.storage_path} className="h-full w-full" />
+              {(p.uploaded_by === me.id || fantasy.created_by === me.id) && (
+                <button className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/50 text-white" onClick={() => f.deletePhoto(p)} aria-label="Delete photo"><X size={12} /></button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {canPhotos && (
+        <label className="btn-soft w-full cursor-pointer">
+          <ImagePlus size={16} strokeWidth={1.6} /> Add photos
+          <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => { const files = [...e.target.files]; e.target.value = ''; if (files.length) f.addPhotos(fantasy.id, files); }} aria-label="Add photos" />
+        </label>
+      )}
     </div>
   );
 }

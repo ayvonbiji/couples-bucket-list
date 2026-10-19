@@ -1172,7 +1172,7 @@ create trigger items_people_guard before insert or update on public.items
 
 -- ======================== accounts.sql ========================
 -- ===========================================================================
--- Our Bucket List — create the two accounts and print your PERSONAL LINKS.
+-- Our Bucket List — create the two accounts and show your PERSONAL LINKS.
 -- Run in Supabase → SQL Editor (after the migrations; setup_all.sql already includes them).
 --
 --  * Creates Ayvon and Aksa in Supabase Auth, or updates them if they already exist (no duplicates).
@@ -1180,29 +1180,28 @@ create trigger items_people_guard before insert or update on public.items
 --  * Links both accounts to ONE shared list (creating it if needed). Existing data is untouched.
 --  * Running this again makes NEW links and the old ones stop working (use it if a phone is lost).
 --
--- Change the address on the next line to your site (e.g. https://our-bucket-list.vercel.app).
--- If you forget, just put your site address in front of the "/#key=…" part of each link.
+-- The helper lives in a private schema that the app's API never exposes; only the database owner can run it.
+-- No temporary tables are used, so it works in the Supabase SQL Editor.
 -- ===========================================================================
-create temp table if not exists setup_config (site_url text);
-truncate setup_config;
-insert into setup_config values ('https://YOUR-SITE.vercel.app');
+create schema if not exists bucket_setup;
+revoke all on schema bucket_setup from public;
 
-create temp table if not exists setup_links (person text, personal_link text);
-truncate setup_links;
-
-do $$
+create or replace function bucket_setup.make_links(site text)
+returns table (person text, personal_link text)
+language plpgsql
+set search_path = public, extensions, auth
+as $$
 declare
-  site    text := rtrim((select site_url from setup_config), '/');
-  people  jsonb := '[{"u":"ayvon","n":"Ayvon"},{"u":"aksa","n":"Aksa"}]';
-  p       jsonb;
-  v_email text;
-  v_id    uuid;
+  people   jsonb := '[{"u":"ayvon","n":"Ayvon"},{"u":"aksa","n":"Aksa"}]';
+  p        jsonb;
+  v_email  text;
+  v_id     uuid;
   v_secret text;
-  ids     uuid[] := '{}';
-  v_ws    uuid;
+  ids      uuid[] := '{}';
+  v_ws     uuid;
   other_ws uuid;
 begin
-  set local search_path = public, extensions, auth;
+  site := rtrim(coalesce(site, ''), '/');
   for p in select * from jsonb_array_elements(people) loop
     v_email  := (p->>'u') || '@users.ourbucketlist.app';
     v_secret := rtrim(translate(replace(encode(gen_random_bytes(32), 'base64'), E'\n', ''), '+/', '-_'), '=');
@@ -1231,7 +1230,9 @@ begin
       on conflict (id) do update set username = excluded.username, display_name = excluded.display_name;
 
     ids := ids || v_id;
-    insert into setup_links values (p->>'n', site || '/#key=' || (p->>'u') || '.' || v_secret);
+    person := p->>'n';
+    personal_link := site || '/#key=' || (p->>'u') || '.' || v_secret;
+    return next;
   end loop;
 
   -- One shared list for both.
@@ -1248,6 +1249,9 @@ begin
     select v_ws, x from unnest(ids) x
     where not exists (select 1 from public.workspace_members m where m.user_id = x);
 end $$;
+revoke all on function bucket_setup.make_links(text) from public;
 
--- Your two links (open each once on its owner's phone; treat them like passwords):
-select person, personal_link from setup_links;
+-- ▼▼ Put your site address here (e.g. https://our-bucket-list.vercel.app) ▼▼
+-- Your two links appear in the results below. Open each once on its owner's phone; treat them like passwords.
+-- (If you forget to change it, put your real address in front of the "/#key=…" part of each link.)
+select * from bucket_setup.make_links('https://YOUR-SITE.vercel.app');

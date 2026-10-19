@@ -8,7 +8,7 @@ const toggleIn = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [..
 
 /** Count of active filters (search excluded) for the filter button badge. */
 export function activeFilterCount(f) {
-  return f.categories.length + f.statuses.length + f.priorities.length + (f.owner !== 'any') + (f.createdBy !== 'any') + (f.minScore > 0) +
+  return f.categories.length + f.statuses.length + f.priorities.length + (f.createdBy !== 'any') + (f.minScore > 0) +
     (f.mutualOnly ? 1 : 0) + (f.maxCost !== '' ? 1 : 0) + (f.minCost !== '' ? 1 : 0) + (f.when !== 'any') + (f.hideCompleted ? 1 : 0) +
     f.timeRequired.length + (f.targetFrom || f.targetTo ? 1 : 0) + (f.completedFrom || f.completedTo ? 1 : 0);
 }
@@ -18,7 +18,7 @@ function Group({ label, children }) {
 }
 
 export function FilterFields({ value: f, onChange, showStatus = true, compact = false }) {
-  const { partner, workspace, categories } = useApp();
+  const { me, partner, workspace, categories } = useApp();
   const set = (patch) => onChange({ ...f, ...patch });
   const chips = (list, key) => (
     <div className="flex flex-wrap gap-1.5">
@@ -41,11 +41,7 @@ export function FilterFields({ value: f, onChange, showStatus = true, compact = 
         <>
           <Group label="Created by">
             <Segmented value={f.createdBy} onChange={(createdBy) => set({ createdBy })}
-              options={[{ value: 'any', label: 'Anyone' }, { value: 'me', label: 'Me' }, { value: 'partner', label: partner?.display_name || 'Partner' }, { value: 'both', label: 'Together' }]} />
-          </Group>
-          <Group label="Whose dream">
-            <Segmented value={f.owner} onChange={(owner) => set({ owner })}
-              options={[{ value: 'any', label: 'Anyone' }, { value: 'me', label: 'Mine' }, { value: 'partner', label: partner?.display_name || 'Partner' }, { value: 'both', label: 'Both' }]} />
+              options={[{ value: 'any', label: 'Anyone' }, { value: 'me', label: me?.display_name || 'Me' }, { value: 'partner', label: partner?.display_name || 'Partner' }]} />
           </Group>
           <Group label="Target date">
             <div className="grid grid-cols-2 gap-2">

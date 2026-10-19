@@ -1,17 +1,17 @@
 // Demo Mode backend: same interface as Supabase, stored in this browser.
 // Tables live in localStorage; photo/backup files live in IndexedDB.
-// On first run a setup screen creates the two accounts (username + password,
-// stored only as PBKDF2 hashes). Both share one workspace.
+// There is no login screen: the app opens directly as the first partner (or as whoever's
+// personal link was opened in this browser). Both partners share one workspace.
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval';
 import { COMPOSITE_KEYS, DATA_TABLES, DEFAULTS, DEFAULT_CATEGORIES, FANTASY_DEFAULTS, FANTASY_TABLES, ITEM_CHILDREN, LEGACY_CATEGORY, LEGACY_FANTASY_CATEGORY, LEGACY_PRIORITY } from './tables.js';
-import { hashPassword, normalizeUsername } from '../lib/auth.js';
+import { normalizeUsername } from '../lib/auth.js';
 
 const ALL_TABLES = [...DATA_TABLES, ...FANTASY_TABLES];
 import { uid } from '../lib/utils.js';
 
 const KEY = 'cbl:db:v1';
 const SESSION_KEY = 'cbl:session';
-const SESSION_DAYS = 30;
+const SESSION_DAYS = 3650; // the device stays signed in (there is no login screen)
 
 // Ids of the original demo partners (kept so earlier demo data stays attached).
 const LEGACY_IDS = [
@@ -19,6 +19,7 @@ const LEGACY_IDS = [
   '00000000-0000-4000-8000-00000000000b',
 ];
 const COLORS = ['#C65D70', '#7D6B91'];
+const DEMO_ACCOUNTS = [{ username: 'ayvon', display_name: 'Ayvon' }, { username: 'aksa', display_name: 'Aksa' }];
 
 function emptyDb() {
   const db = { users: [], accounts: [], workspaces: [], workspace_members: [] };
@@ -113,58 +114,58 @@ export function createLocalBackend() {
     }
   }
 
+  /** Create the two partners + shared workspace (first run). Earlier demo data stays attached. */
+  async function setupAccounts(accounts) {
+    const existing = db.users.filter((u) => LEGACY_IDS.includes(u.id));
+    const users = [];
+    for (const [k, a] of accounts.entries()) {
+      const id = existing[k]?.id || LEGACY_IDS[k] || uid();
+      const username = normalizeUsername(a.username);
+      db.accounts = db.accounts.filter((x) => x.user_id !== id).concat({ user_id: id, username });
+      const u = { id, email: null, username, display_name: existing[k]?.display_name || a.display_name, avatar_color: existing[k]?.avatar_color || COLORS[k] };
+      db.users = db.users.filter((x) => x.id !== id).concat(u);
+      users.push(u);
+    }
+    let ws = db.workspaces[0];
+    if (!ws) {
+      ws = {
+        id: uid(), name: 'Our Bucket List', invite_code: 'LOCAL000', currency: 'INR', share_enabled: false,
+        share_token: uid().replace(/-/g, ''), last_backup_at: null, created_by: users[0].id, created_at: now(), _needsSeed: true,
+      };
+      db.workspaces.push(ws);
+    }
+    for (const u of users) if (!db.workspace_members.some((m) => m.user_id === u.id)) db.workspace_members.push({ workspace_id: ws.id, user_id: u.id, joined_at: now() });
+    seedCategories(db, ws.id);
+    save();
+  }
+
+  function startSession(userId) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ userId, exp: Date.now() + SESSION_DAYS * 86400000 }));
+    authListeners.forEach((fn) => fn(currentUser()));
+  }
+
   const api = {
     mode: 'local',
 
     // ---------------- auth ----------------
     async getUser() { return currentUser(); },
     onAuthChange(cb) { authListeners.add(cb); return () => authListeners.delete(cb); },
-    /** Demo only: are the two accounts configured yet? */
-    needsSetup() { return db.accounts.length < 2; },
-
-    /** Demo only: create both accounts + the shared workspace (first run). */
-    async setupAccounts(accounts) {
-      if (db.accounts.length >= 2) throw new Error('Accounts are already set up');
-      const names = accounts.map((a) => normalizeUsername(a.username));
-      if (new Set(names).size !== 2) throw new Error('Choose two different usernames');
-      const existing = db.users.filter((u) => LEGACY_IDS.includes(u.id));
-      const users = [];
-      for (const [k, a] of accounts.entries()) {
-        const id = existing[k]?.id || LEGACY_IDS[k] || uid();
-        const { salt, hash } = await hashPassword(a.password);
-        db.accounts.push({ user_id: id, username: names[k], salt, hash });
-        const u = { id, email: null, username: names[k], display_name: a.display_name?.trim() || a.username, avatar_color: COLORS[k] };
-        db.users = db.users.filter((x) => x.id !== id).concat(u);
-        users.push(u);
-      }
-      let ws = db.workspaces[0];
-      if (!ws) {
-        ws = {
-          id: uid(), name: 'Our Bucket List', invite_code: 'LOCAL000', currency: 'INR', share_enabled: false,
-          share_token: uid().replace(/-/g, ''), last_backup_at: null, created_by: users[0].id, created_at: now(), _needsSeed: true,
-        };
-        db.workspaces.push(ws);
-      }
-      for (const u of users) if (!db.workspace_members.some((m) => m.user_id === u.id)) db.workspace_members.push({ workspace_id: ws.id, user_id: u.id, joined_at: now() });
-      seedCategories(db, ws.id);
-      save();
+    /**
+     * Demo only: open the app directly. Creates the two partners + shared workspace on first run
+     * (keeping any accounts and data already in this browser), then signs this browser in as the
+     * first partner unless a personal link chose someone else.
+     */
+    async openDirectly() {
+      if (db.accounts.length < 2) await setupAccounts(DEMO_ACCOUNTS);
+      if (!currentUser()) startSession(db.accounts[0].user_id);
     },
 
-    async signInWithPassword(username, password) {
-      await new Promise((r) => setTimeout(r, 250)); // small, constant delay
+    /** Demo only: a personal link (#key=<username>) opens this browser as that partner. */
+    async signInWithDeviceKey({ username }) {
+      if (db.accounts.length < 2) await setupAccounts(DEMO_ACCOUNTS);
       const acc = db.accounts.find((a) => a.username === normalizeUsername(username));
-      const check = await hashPassword(password, acc?.salt || '00'.repeat(16));
-      if (!acc || check.hash !== acc.hash) throw new Error('Incorrect username or password');
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: acc.user_id, exp: Date.now() + SESSION_DAYS * 86400000 }));
-      authListeners.forEach((fn) => fn(currentUser()));
-    },
-
-    async changePassword(current, next) {
-      const me = currentUser();
-      const acc = db.accounts.find((a) => a.user_id === me?.id);
-      if (!acc || (await hashPassword(current, acc.salt)).hash !== acc.hash) throw new Error('Your current password is incorrect');
-      Object.assign(acc, await hashPassword(next));
-      save();
+      if (!acc) throw new Error('This link isn’t valid');
+      startSession(acc.user_id);
     },
     async signOut() { localStorage.removeItem(SESSION_KEY); authListeners.forEach((fn) => fn(null)); },
 

@@ -13,9 +13,9 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. On first run you create the two accounts (name, username, password) on a one-time **Set up your accounts** screen, then sign in. Sample items, two important dates and a hidden gift are seeded. Everything is stored in your browser (localStorage + IndexedDB for photos).
+Open http://localhost:5173. There is no login screen: the app opens straight to Home as the first partner (Ayvon). Sample items, two important dates and a hidden gift are seeded. Everything is stored in your browser (localStorage + IndexedDB for photos).
 
-In Demo Mode, passwords are hashed with PBKDF2-SHA256 (210,000 iterations, random salt) before they are stored. Sign out and sign in as the other partner to see the list from their side: surprises, hidden gifts and private fantasies disappear.
+To see the list from the other side, open http://localhost:5173/#key=aksa. That browser then opens as Aksa: her new items say "Added by Aksa", and Ayvon's surprises, hidden gifts and private fantasies disappear. Demo data lives in one browser only, so Demo Mode can't keep two phones in sync. Use Supabase for that.
 
 ## Real two-person setup (Supabase)
 
@@ -31,34 +31,40 @@ In Demo Mode, passwords are hashed with PBKDF2-SHA256 (210,000 iterations, rando
    - old fantasy statuses → visibility + status
 
    *With the Supabase CLI instead:* `supabase link --project-ref <ref>` then `supabase db push`.
-3. **Lock down sign-ups.** In **Authentication → Providers → Email**, turn **off** "Allow new users to sign up". Only the two accounts you create below can then sign in; there is no anonymous access.
+3. **Lock down sign-ups.** In **Authentication → Providers → Email**, turn **off** "Allow new users to sign up". Only your two accounts can then open the app; there is no anonymous access.
 4. **Add your public keys** (the anon key is safe in the browser; RLS protects the data):
    ```bash
    cp .env.example .env.local
    # VITE_SUPABASE_URL=https://xxxx.supabase.co
    # VITE_SUPABASE_ANON_KEY=eyJ...
    ```
-5. **Create the two accounts** (see below).
+5. **Create the two accounts and personal links** (see below).
 6. *(Optional)* **Enable Google Calendar sync** by deploying the iCal proxy: `supabase functions deploy ical-proxy`.
 7. `npm run dev`, or `npm run build` and deploy `dist/` to Vercel, Netlify or Cloudflare Pages. SPA rewrites are included (`vercel.json`, `public/_redirects`).
 
-### Creating the two accounts
+### No login screen: personal links
 
-Sign-in uses a **username and password**. Supabase Auth stores the password as a bcrypt hash; the app never stores or logs passwords. Behind the scenes a username maps to an internal address, `<username>@users.ourbucketlist.app`, which is never shown and never emailed.
+The app has no login page. Each of you opens a **personal link** once on your own phone. That signs the phone in, and from then on the app always opens straight to Home as you. New items are recorded as "Added by Ayvon" or "Added by Aksa" automatically.
 
-Run the setup script **on your own computer**. It needs the project's **service-role key**, which must never go in `.env.local`, a `VITE_` variable or the repo:
+Create the accounts and links with the setup script, **on your own computer**. It needs the project's **service-role key**, which must never go in `.env.local`, a `VITE_` variable or the repo:
 
 ```bash
 SUPABASE_SERVICE_ROLE_KEY=eyJ...  npm run setup-accounts
 ```
 
-It asks for each partner's display name, username and password (typed hidden, entered twice; at least 8 characters with letters and a number). Then it:
-- creates both users in Supabase Auth, or **updates the password of an existing user with that username** rather than creating a duplicate;
-- links both users to one shared workspace, creating the workspace if needed.
+It asks for your app's address (or reads `APP_URL`), the list name, and each partner's username and display name. Then it:
+- creates both users in Supabase Auth, or **updates the existing user with that username** rather than creating a duplicate;
+- links both users to one shared workspace, creating the workspace if needed;
+- prints two links, like `https://your-app/#key=ayvon.<secret>`.
 
-Run it again any time to reset a forgotten password. Each partner can also change their own password in **Settings → Security**.
+Send each link only to its owner and open it once on their phone.
 
-After that, each of you signs in with your own username and password and lands on Home. Sessions are stored by Supabase Auth and refreshed automatically; **Settings → Sign out** ends the session. Every page requires a session, and the database rejects any request without one.
+**How the links are protected:**
+- Each secret is a fresh random 256-bit value. Supabase Auth stores only its bcrypt hash.
+- The key sits after `#`, so browsers never send it to any server, and the app removes it from the address bar straight away.
+- The phone keeps its Supabase session and also remembers the key, so it can sign itself in again if the session ever expires.
+- Anyone else who opens the app sees only "This is a private app". There is no form, and the database rejects every request without a session.
+- **Treat a link like a password.** If a phone is lost, run the script again. That replaces both links, and the old ones stop working.
 
 *(Inviting by code still works: the first user can choose **Start our list** and the partner **I have a code**. A workspace accepts at most two members, and each person can belong to only one workspace.)*
 
@@ -116,9 +122,10 @@ Fantasy data also never reaches search, the activity feed, notifications, calend
 
 | Area | What's included |
 |---|---|
-| **Sign-in** | Username + password with show/hide, validation, loading state and a clear error for wrong credentials. Protected pages, sign out, change password. Two accounts only; no public sign-up |
+| **Access** | No login screen: the app opens straight to Home. Each phone is linked once with its owner's personal link. Two accounts only; no public sign-up; the database protects everything else |
+| **One shared list** | Ayvon and Aksa share one list with no separate sides. Every row shows a small "Added by Ayvon" or "Added by Aksa". The creator is recorded when the item is first added and never changes when the other person edits it |
 | **One item system** | Every dream works the same way: add → save → plan → complete → record. Categories are filtered views of one list. Every row has a checkbox; ticking it records today's date and updates the stats, and unticking reopens it. Each item has edit, duplicate, delete (with confirmation) and a detail page |
-| **Items** | Title, description, category + subcategory, priority (Low/Medium/High), status (Idea, Planned, In Progress, Completed, On Hold), target dates, time required, location with map pin (OSM search), estimated budget and actual cost (EUR/INR), owner, "Added by", tags, notes, links, cover photo |
+| **Items** | Title, description, category + subcategory, priority (Low/Medium/High), status (Idea, Planned, In Progress, Completed, On Hold), target dates, time required, location with map pin (OSM search), estimated budget and actual cost (EUR/INR), tags, notes, links, cover photo |
 | **Categories** | Add, rename, recolour, reorder or remove (entries move to a fallback category you choose). Open a category to see its list and progress |
 | **Preparation** | Checklist tasks with optional due dates (overdue shown in rose) and their own progress bar |
 | **Budget** | Per currency: still to fund, saved so far, spent on completed dreams |
@@ -199,7 +206,8 @@ The SQL migrations were tested against PostgreSQL 16 with a stubbed Supabase `au
 - for `0003`: data mapping on existing rows, re-running safely, the fantasy consent and photo rules, and category rename/delete
 
 The app was tested end to end in Demo Mode with Playwright (mobile and desktop):
-- account setup, sign-in for both partners, the wrong-password error, protected pages and sign-out
+- opening straight to Home, personal links, existing data kept after upgrading from the login version, and private fantasies staying private
+- the "Added by" label, which keeps the original creator after the other partner edits
 - item create/edit/duplicate/delete, checkbox completion and reopen updating the stats, and editing the experience note
 - categories, search and filters, the calendar event sheet, budget and memories
 - fantasy privacy between partners, the consent gate, the completion prompt and the photo rule

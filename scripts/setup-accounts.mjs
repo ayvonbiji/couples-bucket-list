@@ -1,17 +1,21 @@
 #!/usr/bin/env node
-// Create (or update) the two login accounts in Supabase Auth and link them to one shared list.
+// Create (or update) the two accounts in Supabase Auth, link them to one shared list,
+// and print each partner's PERSONAL LINK. There is no login screen: opening the link once
+// on a phone signs that phone in, and the app then always opens straight to Home.
 //
 //   SUPABASE_SERVICE_ROLE_KEY=... npm run setup-accounts
 //
 // - Uses the service-role key, which must stay on YOUR computer: never put it in .env.local
 //   (Vite would expose VITE_* variables to the browser) and never commit it.
-// - Passwords are typed at a hidden prompt and sent straight to Supabase Auth, which stores
-//   only a bcrypt hash. Nothing is written to disk or printed.
-// - Safe to re-run: existing accounts get their password/name updated instead of duplicates.
+// - Each link carries a fresh random 256-bit secret. Supabase Auth stores only its bcrypt hash;
+//   nothing is written to disk. Treat each link like a password and send it only to its owner.
+// - Safe to re-run: existing accounts are updated instead of duplicated, and re-running
+//   replaces both links (old links stop working — use this if a phone is lost).
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync } from 'node:fs';
 import readline from 'node:readline';
-import { USERNAME_DOMAIN, normalizeUsername, usernameToEmail, validatePassword, validateUsername } from '../src/lib/auth.js';
+import { randomBytes } from 'node:crypto';
+import { USERNAME_DOMAIN, normalizeUsername, usernameToEmail, validateUsername } from '../src/lib/auth.js';
 
 // Read SUPABASE_URL from the environment or .env.local (VITE_SUPABASE_URL).
 function envFile() {
@@ -35,29 +39,12 @@ if (!url || !serviceKey) {
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
 const ask = (q) => new Promise((res) => rl.question(q, (a) => res(a.trim())));
-// Hidden input for passwords.
-function askHidden(q) {
-  return new Promise((res) => {
-    const write = rl._writeToOutput;
-    rl._writeToOutput = (s) => (s.includes(q) ? write.call(rl, s) : write.call(rl, ''));
-    rl.question(q, (a) => { rl._writeToOutput = write; process.stdout.write('\n'); res(a); });
-  });
-}
-
 async function promptAccount(n) {
   console.log(`\nAccount ${n}`);
   let username;
   for (;;) { username = normalizeUsername(await ask('  Username: ')); const e = validateUsername(username); if (!e) break; console.log(`  ${e}`); }
   const display = (await ask(`  Display name [${username}]: `)) || username;
-  let password;
-  for (;;) {
-    password = await askHidden('  Password: ');
-    const e = validatePassword(password, { strict: true });
-    if (e) { console.log(`  ${e}`); continue; }
-    if ((await askHidden('  Repeat password: ')) !== password) { console.log('  Passwords did not match'); continue; }
-    break;
-  }
-  return { username, display, password };
+  return { username, display, password: randomBytes(32).toString('base64url') };
 }
 
 const sb = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -116,7 +103,10 @@ async function linkWorkspace(a, b, listName) {
 }
 
 try {
-  console.log(`Our Bucket List — account setup\nSupabase: ${url}\nUsernames sign in as <username>@${USERNAME_DOMAIN} behind the scenes.`);
+  console.log(`Our Bucket List — account setup\nSupabase: ${url}\nAccounts are stored as <username>@${USERNAME_DOMAIN} behind the scenes.`);
+  let appUrl = process.env.APP_URL || (await ask('\nAddress of your app (e.g. https://our-bucket-list.vercel.app): '));
+  appUrl = appUrl.replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(appUrl)) throw new Error('Enter the full address, starting with https://');
   const listName = (await ask('\nName of your shared list [Our Bucket List]: ')) || 'Our Bucket List';
   const a = await promptAccount(1);
   const b = await promptAccount(2);
@@ -125,7 +115,10 @@ try {
   const ua = await upsertAccount(a);
   const ub = await upsertAccount(b);
   await linkWorkspace(ua, ub, listName);
-  console.log('\nDone. You can both sign in with your usernames and passwords.');
+  console.log('\nDone. Personal links — open each one once on its owner\'s phone, then just open the app:');
+  console.log(`\n  ${a.display}: ${appUrl}/#key=${a.username}.${a.password}`);
+  console.log(`  ${b.display}: ${appUrl}/#key=${b.username}.${b.password}`);
+  console.log('\nKeep these private: anyone with a link can open the app as that person.');
 } catch (e) {
   console.error(`\nSetup failed: ${e.message || e}`);
   process.exitCode = 1;

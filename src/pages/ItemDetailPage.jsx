@@ -22,7 +22,7 @@ const MiniMap = lazy(() => import('../components/MapBits.jsx').then((m) => ({ de
 export default function ItemDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { data, me, partner, personLabel, updateItem, vote, toggleReaction, revealSurprise, reopenItem } = useApp();
+  const { data, me, partner, personLabel, personName, updateItem, vote, toggleReaction, revealSurprise, reopenItem } = useApp();
   const item = data.items.find((i) => i.id === id);
   const [params, setParams] = useSearchParams();
   const [completing, setCompleting] = useState(false); // false | 'complete' | 'edit'
@@ -80,7 +80,7 @@ export default function ItemDetailPage() {
           <h1 className="title-serif mt-2 text-[34px] leading-[1.1]">{item.title}</h1>
           {item.subcategory && <p className="muted mt-1 text-[14px]">{item.subcategory}</p>}
           <p className="muted mt-2 text-[13px]">
-            Added by {item.added_by_both ? 'both of you' : personLabel(item.created_by)} on {fmtDate(item.created_at, 'd MMM yyyy')} · {item.owner_user_id ? `${personLabel(item.owner_user_id)}’s dream` : 'For both of you'}
+            Added by {personName(item.created_by) || personLabel(item.created_by)} on {fmtDate(item.created_at, 'd MMM yyyy')}
           </p>
           {item.description && <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700 dark:text-[#D4CFD5]">{item.description}</p>}
         </section>

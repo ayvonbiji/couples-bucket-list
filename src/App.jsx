@@ -1,11 +1,12 @@
-// Routing + auth gate. Signed-out → Login; signed-in without a partner link → Link screen.
+// Routing. There is no login screen: the app opens straight to Home on a device that has
+// opened its personal link (see lib/deviceKey.js). Anyone else sees a short private notice.
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useApp } from './store/AppStore.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import Toasts from './components/Toasts.jsx';
 import { Spinner } from './components/ui.jsx';
-import LoginPage from './pages/LoginPage.jsx';
+import PrivatePage from './pages/PrivatePage.jsx';
 import LinkPage from './pages/LinkPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ListPage from './pages/ListPage.jsx';
@@ -21,7 +22,6 @@ import ExportPage from './pages/ExportPage.jsx';
 import SharePage from './pages/SharePage.jsx';
 import MorePage from './pages/MorePage.jsx';
 import SurprisePage from './pages/SurprisePage.jsx';
-import SetupPage from './pages/SetupPage.jsx';
 import CategoriesPage from './pages/CategoriesPage.jsx';
 import BudgetPage from './pages/BudgetPage.jsx';
 import Sidebar from './components/Sidebar.jsx';
@@ -36,7 +36,7 @@ const FantasyDetailPage = lazy(() => import('./fantasy/FantasyDetailPage.jsx'));
 const FantasyEditPage = lazy(() => import('./fantasy/FantasyEditPage.jsx'));
 
 export default function App() {
-  const { user, workspace, loading, needsSetup, finishSetup } = useApp();
+  const { user, workspace, loading } = useApp();
   const { pathname } = useLocation();
 
   // Public read-only share link works signed-out.
@@ -49,9 +49,8 @@ export default function App() {
   }
 
   if (loading) return <FullScreenLoader />;
-  // Every protected route renders the login screen until there is a valid session.
-  if (needsSetup) return (<><SetupPage onDone={finishSetup} /><Toasts /></>);
-  if (!user) return (<><LoginPage /><Toasts /></>);
+  // No session on this device (Supabase only): the data stays protected by the database.
+  if (!user) return (<><PrivatePage /><Toasts /></>);
   if (!workspace) return (<><LinkPage /><Toasts /></>);
 
   return (

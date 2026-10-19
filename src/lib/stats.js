@@ -154,7 +154,7 @@ export function applyFilters(items, f, meId) {
     if (f.maxCost !== '' && f.maxCost !== null && f.maxCost !== undefined && Number(i.est_cost || 0) > Number(f.maxCost)) return false;
     if (f.minCost && Number(i.est_cost || 0) < Number(f.minCost)) return false;
     if (f.createdBy === 'me' && i.created_by !== meId) return false;
-    if (f.createdBy === 'partner' && (i.created_by === meId || i.added_by_both)) return false;
+    if (f.createdBy === 'partner' && i.created_by === meId) return false;
     if (f.createdBy === 'both' && !i.added_by_both) return false;
     if (f.timeRequired?.length && !f.timeRequired.includes(i.time_required)) return false;
     if (f.targetFrom && (!i.start_date || i.start_date < f.targetFrom)) return false;

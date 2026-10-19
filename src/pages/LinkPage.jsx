@@ -6,7 +6,7 @@ import { CURRENCIES } from '../lib/constants.js';
 import { errMsg } from '../lib/utils.js';
 
 export default function LinkPage() {
-  const { backend, user, setMembership, toast } = useApp();
+  const { backend, user, setMembership } = useApp();
   const [tab, setTab] = useState('create');
   const [name, setName] = useState('Our Bucket List');
   const [currency, setCurrency] = useState('INR');
@@ -65,7 +65,6 @@ export default function LinkPage() {
           )}
           {error && <p className="err" role="alert">{error}</p>}
         </div>
-        <button className="btn-ghost mx-auto mt-4 flex" onClick={() => backend.signOut().catch((e) => toast(errMsg(e), 'error'))}>Sign out</button>
       </div>
     </main>
   );

@@ -9,6 +9,7 @@ import { seedDates, seedItems } from '../lib/seed.js';
 import { compressImage } from '../lib/image.js';
 import { TRASH_DAYS, registerCategories } from '../lib/constants.js';
 import { errMsg, todayISO, uid } from '../lib/utils.js';
+import { forgetKey, savedKey, saveKey, takeKeyFromUrl } from '../lib/deviceKey.js';
 import { dueReminders, fireDueNotifications } from '../lib/notifications.js';
 
 const AppCtx = createContext(null);
@@ -25,7 +26,6 @@ export function AppProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [dataLoaded, setDataLoaded] = useState(false); // true once the workspace snapshot has loaded
   const [toasts, setToasts] = useState([]);
-  const [needsSetup, setNeedsSetup] = useState(false); // Demo Mode first run
   const reloadTimer = useRef();
   const housekeepingDone = useRef(false);
 
@@ -54,8 +54,18 @@ export function AppProvider({ children }) {
   useEffect(() => {
     let unsub;
     getBackend().then(async (b) => {
+      // No login screen. A personal link (#key=…) signs this device in once; the key is
+      // remembered so the device can sign itself in again if its session ever expires.
+      const fromUrl = takeKeyFromUrl();
+      if (fromUrl) {
+        try { await b.signInWithDeviceKey(fromUrl); saveKey(fromUrl); }
+        catch (e) { toast(errMsg(e), 'error'); }
+      } else if (!(await b.getUser()) && savedKey()) {
+        try { await b.signInWithDeviceKey(savedKey()); }
+        catch { forgetKey(); }
+      }
+      if (b.openDirectly) await b.openDirectly(); // Demo Mode: straight in
       setBackend(b);
-      setNeedsSetup(Boolean(b.needsSetup?.()));
       setUser(await b.getUser());
       unsub = b.onAuthChange((u) => setUser(u));
     });
@@ -431,7 +441,6 @@ export function AppProvider({ children }) {
       deleteCategory: (id, fallbackId) => run(async () => { await backend.deleteCategory(id, fallbackId); await reload(); }, 'Category removed'),
 
       // ---------- account ----------
-      changePassword: (current, next) => run(async () => { await backend.changePassword(current, next); return true; }, 'Password changed'),
     };
   }, [backend, ws, me, partner, raw, membership, reload, run]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -452,6 +461,9 @@ export function AppProvider({ children }) {
   }, [reminders, items, data.important_dates]);
 
   /** "Me" / partner's name / "Both" relative to the viewer. */
+  /** A partner's own name ("Ayvon", "Aksa") — used for "Added by …", whoever is viewing. */
+  const personName = useCallback((userId) => membership?.members.find((m) => m.id === userId)?.display_name || null, [membership]);
+
   const personLabel = useCallback((userId, { both = 'Both' } = {}) => {
     if (!userId) return both;
     if (userId === me?.id) return 'Me';
@@ -460,9 +472,9 @@ export function AppProvider({ children }) {
 
   const value = {
     backend, mode: backend?.mode, user, me, partner, workspace: ws, membership,
-    data, items, trash, categories, fantasyCategories, needsSetup, finishSetup: () => setNeedsSetup(false),
+    data, items, trash, categories, fantasyCategories, 
     loading: loading || user === undefined || (user && membership === undefined),
-    toasts, toast, dismissToast, reminders, personLabel,
+    toasts, toast, dismissToast, reminders, personLabel, personName,
     setMembership,
     ...actions,
   };

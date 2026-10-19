@@ -27,18 +27,14 @@ export function createSupabaseBackend(url, anonKey) {
       const { data } = sb.auth.onAuthStateChange((_e, session) => cb(session?.user ?? null));
       return () => data.subscription.unsubscribe();
     },
-    needsSetup() { return false; }, // accounts are created with scripts/setup-accounts.mjs
-    /** Username + password through Supabase Auth (passwords are hashed by Supabase, never stored by the app). */
-    async signInWithPassword(username, password) {
-      const { error } = await sb.auth.signInWithPassword({ email: usernameToEmail(username), password });
-      if (error) throw new Error(/invalid login credentials/i.test(error.message) ? 'Incorrect username or password' : error.message);
-    },
-    async changePassword(current, next) {
-      const { data } = await sb.auth.getUser();
-      const email = data.user?.email;
-      const { error: e1 } = await sb.auth.signInWithPassword({ email, password: current });
-      if (e1) throw new Error('Your current password is incorrect');
-      check(await sb.auth.updateUser({ password: next }));
+    /**
+     * Personal-link sign-in. The link's secret is the account's random password in Supabase Auth
+     * (set by scripts/setup-accounts.mjs); Supabase stores only its hash and keeps the session.
+     */
+    async signInWithDeviceKey({ username, secret }) {
+      if (!username || !secret) throw new Error('This link isn’t valid');
+      const { error } = await sb.auth.signInWithPassword({ email: usernameToEmail(username), password: secret });
+      if (error) throw new Error(/invalid login credentials/i.test(error.message) ? 'This link isn’t valid anymore' : error.message);
     },
     async signOut() {
       await sb.auth.signOut();

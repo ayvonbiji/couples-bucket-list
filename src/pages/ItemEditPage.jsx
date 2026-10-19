@@ -18,7 +18,7 @@ export default function ItemEditPage() {
   const { id } = useParams();
   const { search } = useLocation();
   const nav = useNavigate();
-  const { data, me, partner, workspace, categories, createItem, updateItem } = useApp();
+  const { data, partner, workspace, categories, createItem, updateItem } = useApp();
   const existing = id ? data.items.find((i) => i.id === id) : null;
   const preset = useMemo(() => Object.fromEntries(new URLSearchParams(search)), [search]);
 
@@ -160,14 +160,8 @@ export default function ItemEditPage() {
             </div>
           </Disclosure>
 
-          <Disclosure title="Who & privacy" icon={Lock} defaultOpen={v.is_surprise || Boolean(v.owner_user_id)}>
+          <Disclosure title="Privacy" icon={Lock} defaultOpen={v.is_surprise}>
             <div className="space-y-4">
-              <div>
-                <span className="label">Whose dream</span>
-                <SegmentedControl value={v.owner_user_id || ''} onChange={(o) => set({ owner_user_id: o || null })}
-                  options={[{ value: me.id, label: 'Mine' }, ...(partner ? [{ value: partner.id, label: partner.display_name || 'Partner' }] : []), { value: '', label: 'Both' }]} />
-              </div>
-              <Toggle checked={v.added_by_both} onChange={(added_by_both) => set({ added_by_both })} label="We thought of this together" />
               <Toggle checked={v.is_surprise} onChange={(is_surprise) => set({ is_surprise })} label="Keep it a surprise" description={`Hidden from ${partner?.display_name || 'your partner'} until you reveal it`} />
               {v.is_surprise && (
                 <Field label="Reveal automatically on" hint="Optional — or reveal it yourself from the dream’s page">

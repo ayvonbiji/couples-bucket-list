@@ -7,6 +7,7 @@ import { STATUS_META } from '../lib/constants.js';
 import { cn, countdownLabel, fmtDate } from '../lib/utils.js';
 import { surpriseIsActive } from '../lib/visibility.js';
 import { StoredImage } from './ui.jsx';
+import { useApp } from '../store/AppStore.jsx';
 import { CategoryDot, CategoryPlaceholder } from './icons.jsx';
 
 export function StatusText({ status, className }) {
@@ -15,6 +16,14 @@ export function StatusText({ status, className }) {
 // Back-compat name used across pages.
 export const StatusPill = StatusText;
 export { CategoryDot };
+
+/** Small "Added by Ayvon" line. The creator is recorded once, when the item is first added. */
+export function AddedBy({ item, className }) {
+  const { personName } = useApp();
+  const name = personName(item.created_by);
+  if (!name) return null;
+  return <p className={cn('muted truncate text-[11px] leading-tight', className)}>Added by {name}</p>;
+}
 
 /** One secondary detail: upcoming date beats place beats timeframe. */
 function secondary(item) {
@@ -115,6 +124,7 @@ export function ItemRow({ item, selectMode, selected, onToggleSelect, onLongPres
             <StatusText status={item.status} />
             {sub && <><span className="text-ink-500/50" aria-hidden>·</span><span className="muted truncate text-[13px]">{sub}</span></>}
           </div>
+          <AddedBy item={item} className="mt-0.5" />
         </div>
         {!selectMode && onMore && (
           <button type="button" className="icon-btn -mr-2 h-9 w-9 shrink-0 text-ink-500" onClick={(e) => { e.stopPropagation(); onMore(item); }} onTouchStart={(e) => e.stopPropagation()} aria-label={`Actions for ${item.title}`}>
@@ -149,6 +159,7 @@ export function ItemCard({ item, compact }) {
           <CategoryDot category={item.category} label={false} />
           <StatusText status={item.status} />
         </div>
+        {!compact && <AddedBy item={item} className="mt-0.5" />}
       </div>
     </Link>
   );

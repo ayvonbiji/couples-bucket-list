@@ -1,0 +1,9 @@
+{
+  "name": "Our Bucket List",
+  "short_name": "Bucket List",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffbf6",
+  "theme_color": "#e2555a",
+  "icons": [{ "src": "/heart.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

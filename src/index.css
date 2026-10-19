@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body {
+    @apply bg-cream-50 text-ink-800 font-sans antialiased dark:bg-ink-950 dark:text-cream-100;
+    min-height: 100dvh;
+  }
+  h1, h2, h3 { @apply font-display tracking-tight; }
+  :focus-visible { @apply outline-none ring-2 ring-rose-500 ring-offset-2 ring-offset-cream-50 dark:ring-offset-ink-950; }
+  input[type='date'], input[type='datetime-local'] { min-height: 2.75rem; }
+  ::selection { @apply bg-rose-200 text-ink-900; }
+}
+
+@layer components {
+  .card { @apply rounded-2xl bg-white shadow-soft ring-1 ring-rose-100/70 dark:bg-ink-800 dark:ring-white/5 dark:shadow-none; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition active:scale-[.97] disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-primary { @apply btn bg-rose-600 text-white hover:bg-rose-700 shadow-sm; }
+  .btn-soft { @apply btn bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/50 dark:text-rose-200 dark:hover:bg-rose-900/60; }
+  .btn-ghost { @apply btn text-ink-700 hover:bg-black/5 dark:text-cream-100 dark:hover:bg-white/10; }
+  .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+  .icon-btn { @apply inline-flex h-10 w-10 items-center justify-center rounded-full transition hover:bg-black/5 active:scale-95 dark:hover:bg-white/10; }
+  .input { @apply w-full rounded-xl border border-rose-100 bg-white px-3 py-2.5 text-[15px] text-ink-800 placeholder:text-ink-700/40 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-200 dark:border-white/10 dark:bg-ink-900 dark:text-cream-100 dark:placeholder:text-cream-100/30 dark:focus:ring-rose-900; }
+  .label { @apply mb-1 block text-xs font-bold uppercase tracking-wide text-ink-700/70 dark:text-cream-100/60; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold; }
+  .chip-toggle { @apply chip cursor-pointer border border-rose-100 bg-white text-ink-700 transition dark:border-white/10 dark:bg-ink-900 dark:text-cream-100; }
+  .chip-toggle[aria-pressed='true'] { @apply border-rose-500 bg-rose-600 text-white; }
+  .section-title { @apply font-display text-lg font-bold text-ink-800 dark:text-cream-100; }
+  .muted { @apply text-ink-700/65 dark:text-cream-100/60; }
+  .err { @apply mt-1 text-xs font-semibold text-red-600 dark:text-red-400; }
+}
+
+@layer utilities {
+  .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem); }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+}
+
+/* Leaflet tiles in dark mode: soften so the map doesn't glare. */
+.dark .leaflet-tile-pane { filter: brightness(.75) contrast(1.1) saturate(.8); }
+.leaflet-container { font-family: inherit; border-radius: 1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

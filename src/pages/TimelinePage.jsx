@@ -26,7 +26,7 @@ export default function TimelinePage() {
       .filter((j) => !j.item_id || itemById.has(j.item_id))
       .map((j) => {
         const it = j.item_id ? itemById.get(j.item_id) : null;
-        return { ...j, kind: j.item_id ? 'item' : 'manual', person: it ? it.created_by : j.created_by, photos: photosFor(data.item_photos, j) };
+        return { ...j, kind: j.item_id ? 'item' : 'manual', person: it ? it.creator_id : j.created_by, photos: photosFor(data.item_photos, j) };
       });
     for (const d of data.important_dates) {
       if (d.date <= todayISO() && ['together_since', 'first_date', 'anniversary'].includes(d.kind))

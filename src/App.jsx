@@ -6,7 +6,8 @@ import { useApp } from './store/AppStore.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import Toasts from './components/Toasts.jsx';
 import { Spinner } from './components/ui.jsx';
-import PrivatePage from './pages/PrivatePage.jsx';
+import PrivatePage, { NotConnectedPage } from './pages/PrivatePage.jsx';
+import { isBackendAvailable } from './data/backend.js';
 import LinkPage from './pages/LinkPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ListPage from './pages/ListPage.jsx';
@@ -48,6 +49,7 @@ export default function App() {
     );
   }
 
+  if (!isBackendAvailable) return <NotConnectedPage />;
   if (loading) return <FullScreenLoader />;
   // No session on this device (Supabase only): the data stays protected by the database.
   if (!user) return (<><PrivatePage /><Toasts /></>);

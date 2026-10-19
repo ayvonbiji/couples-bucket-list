@@ -6,16 +6,22 @@ A calm, private, mobile-first app for two people to dream, plan and remember tog
 
 ---
 
-## Quick start (Demo Mode — no setup)
+## Quick start (Demo Mode, local development only)
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173. There is no login screen: the app opens straight to Home as the first partner (Ayvon). Sample items, two important dates and a hidden gift are seeded. Everything is stored in your browser (localStorage + IndexedDB for photos).
+Open http://localhost:5173. Without database settings, `npm run dev` runs **Demo Mode**: there is no login screen, and the app opens straight to Home as the first partner (Ayvon). Sample items, two important dates and a hidden gift are seeded. Everything is stored in this browser only (localStorage + IndexedDB for photos).
 
-To see the list from the other side, open http://localhost:5173/#key=aksa. That browser then opens as Aksa: her new items say "Added by Aksa", and Ayvon's surprises, hidden gifts and private fantasies disappear. Demo data lives in one browser only, so Demo Mode can't keep two phones in sync. Use Supabase for that.
+> **Demo Mode is never used for a deployed site.** A production build without `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` shows *"The shared database isn't connected"* and saves nothing.
+>
+> Earlier versions silently fell back to Demo Mode. Each phone then kept its own separate list, so one partner saw an older or different list than the other.
+>
+> (Set `VITE_DEMO_MODE=true` only if you deliberately want a browser-only demo build.)
+
+To see the list from the other side, open http://localhost:5173/#key=aksa. That browser then opens as Aksa, and Ayvon's surprises, hidden gifts and private fantasies disappear. Demo data lives in one browser only, so Demo Mode can't keep two phones in sync. Use Supabase for that.
 
 ## Real two-person setup (Supabase)
 
@@ -24,8 +30,9 @@ To see the list from the other side, open http://localhost:5173/#key=aksa. That 
    - [`0001_init.sql`](supabase/migrations/0001_init.sql): tables, RLS policies, RPCs, the private `photos` and `backups` buckets, realtime.
    - [`0002_secret_fantasy.sql`](supabase/migrations/0002_secret_fantasy.sql): Secret Fantasy tables, consent rules and the private `fantasy` bucket.
    - [`0003_upgrade.sql`](supabase/migrations/0003_upgrade.sql): usernames, editable categories, the new item fields and statuses, Secret Fantasy v2 (visibility, statuses, photos, "hide from my list").
+   - [`0004_item_creator.sql`](supabase/migrations/0004_item_creator.sql): the **Created by** field (`creator_id`) and **last edited by** (`updated_by`). Existing items keep an empty creator until you pick one; nothing is guessed.
 
-   All three are safe to re-run and **preserve existing data**. If you already ran the earlier files, run only the ones you haven't. `0003` maps old values rather than deleting them:
+   All four are safe to re-run and **preserve existing data**. If you already ran the earlier files, run only the ones you haven't. `0003` maps old values rather than deleting them:
    - priorities `Must-do → High`, `Someday → Medium`, `Dream → Low`
    - old category names → the new categories (the original text is kept in `legacy_category`)
    - old fantasy statuses → visibility + status
@@ -40,11 +47,24 @@ To see the list from the other side, open http://localhost:5173/#key=aksa. That 
    ```
 5. **Create the two accounts and personal links** (see below).
 6. *(Optional)* **Enable Google Calendar sync** by deploying the iCal proxy: `supabase functions deploy ical-proxy`.
-7. `npm run dev`, or `npm run build` and deploy `dist/` to Vercel, Netlify or Cloudflare Pages. SPA rewrites are included (`vercel.json`, `public/_redirects`).
+7. **Deploy** (see *Deploying* below). Both phones must open the **same deployed address**, and that build must have the two `VITE_SUPABASE_*` settings.
+
+### Deploying (Vercel, Netlify or Cloudflare Pages)
+
+Vite reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` **when the site is built**, not when it's opened. They must therefore be set in the host's settings before the build runs:
+
+1. **Vercel:** Project → Settings → Environment Variables. Add both for **Production** (and Preview if you use it).
+2. **Redeploy** (Deployments → ⋯ → Redeploy). Changing variables does not update a build that already exists.
+3. Open the site. It should show *"This is a private app"* (or Home, if this phone already has its personal link). *"The shared database isn't connected"* means the variables didn't reach the build.
+4. Open each personal link once on its owner's phone.
+
+**Dreams saved before the database was connected.** These lived only in that phone's browser. The first time you open the connected app on that phone, Home shows *"N dreams are saved only on this device"*, and one tap copies them into the shared list. Sample dreams are left unticked, and "Created by" is left for you to choose.
+
+SPA rewrites are included (`vercel.json`, `public/_redirects`). **Never** put the service-role key in these settings.
 
 ### No login screen: personal links
 
-The app has no login page. Each of you opens a **personal link** once on your own phone. That signs the phone in, and from then on the app always opens straight to Home as you. New items are recorded as "Added by Ayvon" or "Added by Aksa" automatically.
+The app has no login page. Each of you opens a **personal link** once on your own phone. That signs the phone in, and from then on the app always opens straight to Home as you. Each new dream records who created it (you choose Ayvon or Aksa in the form).
 
 Create the accounts and links with the setup script, **on your own computer**. It needs the project's **service-role key**, which must never go in `.env.local`, a `VITE_` variable or the repo:
 
@@ -123,7 +143,8 @@ Fantasy data also never reaches search, the activity feed, notifications, calend
 | Area | What's included |
 |---|---|
 | **Access** | No login screen: the app opens straight to Home. Each phone is linked once with its owner's personal link. Two accounts only; no public sign-up; the database protects everything else |
-| **One shared list** | Ayvon and Aksa share one list with no separate sides. Every row shows a small "Added by Ayvon" or "Added by Aksa". The creator is recorded when the item is first added and never changes when the other person edits it |
+| **One shared list** | Ayvon and Aksa read and write one list in one database, with no separate sides. Changes arrive instantly through Supabase Realtime. Each phone also re-fetches when the app is reopened, comes back online, or every 20 seconds, so a phone that was asleep never shows an old list |
+| **Created by** | Every new dream needs an explicit **Created by: Ayvon / Aksa**; it is never assumed from whoever is using the app. It shows as a small "Created by Aksa" in list view, grid view and on the detail page, and can be changed when editing. It is stored separately from who entered the item and from who last edited it (shown as "last edited by …"). Older items without a creator show no label until you choose one |
 | **One item system** | Every dream works the same way: add → save → plan → complete → record. Categories are filtered views of one list. Every row has a checkbox; ticking it records today's date and updates the stats, and unticking reopens it. Each item has edit, duplicate, delete (with confirmation) and a detail page |
 | **Items** | Title, description, category + subcategory, priority (Low/Medium/High), status (Idea, Planned, In Progress, Completed, On Hold), target dates, time required, location with map pin (OSM search), estimated budget and actual cost (EUR/INR), tags, notes, links, cover photo |
 | **Categories** | Add, rename, recolour, reorder or remove (entries move to a fallback category you choose). Open a category to see its list and progress |
@@ -156,7 +177,7 @@ supabase/
   functions/ical-proxy/        Edge Function: fetches Google Calendar iCal feeds (CORS)
 src/
   data/                        Backend layer — same interface for both modes
-    backend.js                 Chooses Supabase or Demo Mode from env vars
+    backend.js                 Chooses Supabase (or Demo Mode in local dev only) from env vars
     supabaseBackend.js         Supabase client: CRUD, storage (signed URLs), realtime, RPCs
     localBackend.js            Demo Mode: localStorage tables + IndexedDB files
     tables.js                  Table list, column defaults, cascade rules
@@ -205,14 +226,28 @@ The SQL migrations were tested against PostgreSQL 16 with a stubbed Supabase `au
 - validated restore, sharing and trash purge
 - for `0003`: data mapping on existing rows, re-running safely, the fantasy consent and photo rules, and category rename/delete
 
-The app was tested end to end in Demo Mode with Playwright (mobile and desktop):
+**Shared database, two browsers.** This was tested end to end against a real Postgres + Supabase Auth (GoTrue) + PostgREST stack, run locally. The tests used two separate browsers (Ayvon's phone and Aksa's phone), each with its personal link from the real `setup-accounts` script:
+- **Bug reproduced first:** with the build that was then live, the partner didn't see a new item, because it was only in browser storage.
+- **Shared items:** with the fix, items added on either phone are saved to the database and appear on the other phone without a refresh (within about 20 seconds via the background refresh; Realtime was not part of the test stack).
+- **Edits, completion and refreshes:** edits and completions (with date) reach both phones, and everything survives a refresh on both.
+- **"Created by":**
+  - it is required on new items and saved separately from who entered or last edited the item;
+  - it stays when the other partner edits, and can be changed;
+  - it shows in list, grid and detail;
+  - older items stay empty until chosen;
+  - the database rejects anyone outside the two of you.
+- **Other checks:**
+  - anonymous API requests get nothing, and a private fantasy stays hidden from the partner;
+  - a build without settings shows "not connected";
+  - re-running `setup-accounts` updates the accounts instead of duplicating them.
+
+The app was also tested end to end in Demo Mode with Playwright (mobile and desktop):
 - opening straight to Home, personal links, existing data kept after upgrading from the login version, and private fantasies staying private
-- the "Added by" label, which keeps the original creator after the other partner edits
 - item create/edit/duplicate/delete, checkbox completion and reopen updating the stats, and editing the experience note
 - categories, search and filters, the calendar event sheet, budget and memories
 - fantasy privacy between partners, the consent gate, the completion prompt and the photo rule
 
-`scripts/setup-accounts.mjs` is syntax-checked but has to be run against your own Supabase project.
+`scripts/setup-accounts.mjs` was run against the local Supabase Auth server. Running it against your hosted project is the one step that has to happen on your side.
 
 ## Notes and limitations (MVP)
 

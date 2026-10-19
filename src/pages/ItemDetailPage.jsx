@@ -80,7 +80,8 @@ export default function ItemDetailPage() {
           <h1 className="title-serif mt-2 text-[34px] leading-[1.1]">{item.title}</h1>
           {item.subcategory && <p className="muted mt-1 text-[14px]">{item.subcategory}</p>}
           <p className="muted mt-2 text-[13px]">
-            Added by {personName(item.created_by) || personLabel(item.created_by)} on {fmtDate(item.created_at, 'd MMM yyyy')}
+            {item.creator_id && personName(item.creator_id) ? `Created by ${personName(item.creator_id)}` : 'Creator not set'} · added {fmtDate(item.created_at, 'd MMM yyyy')}
+            {item.updated_by && personName(item.updated_by) && <> · last edited by {personName(item.updated_by)}</>}
           </p>
           {item.description && <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed text-ink-700 dark:text-[#D4CFD5]">{item.description}</p>}
         </section>

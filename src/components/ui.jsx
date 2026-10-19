@@ -176,7 +176,7 @@ export function SegmentedControl({ options, value, onChange, className }) {
   return (
     <div className={cn('grid rounded-xl bg-ink-800/[.05] p-0.5 dark:bg-white/5', className)} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0,1fr))` }} role="tablist">
       {options.map((o) => (
-        <button key={o.value} role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)}
+        <button key={o.value} type="button" role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)}
           className={cn('min-h-[34px] rounded-[10px] px-2 text-[13px] font-medium transition', value === o.value ? 'bg-white text-ink-800 shadow-[0_1px_3px_rgba(37,35,38,0.1)] dark:bg-ink-800 dark:text-cream-100' : 'text-ink-500')}>
           {o.label}
         </button>

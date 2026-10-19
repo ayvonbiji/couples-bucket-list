@@ -50,8 +50,9 @@ export function restorePlan(backup, { workspaceId, meId, partnerId }) {
   (backup.members || []).forEach((m, k) => userMap.set(m.id, known.has(m.id) ? m.id : targets[k] ?? meId));
   const user = (u) => (u ? userMap.get(u) ?? (known.has(u) ? u : meId) : null);
 
+  // A creator is only kept if it maps to one of you — never guessed.
   const strip = (r) => { const { id, workspace_id, ...rest } = r; return rest; }; // eslint-disable-line no-unused-vars
-  const items = (d.items || []).map((r) => ({ ...strip(r), id: newId(r.id), workspace_id: workspaceId, created_by: user(r.created_by), owner_user_id: user(r.owner_user_id), cover_photo_id: r.cover_photo_id ? newId(r.cover_photo_id) : null }));
+  const items = (d.items || []).map((r) => ({ ...strip(r), id: newId(r.id), workspace_id: workspaceId, created_by: user(r.created_by), owner_user_id: user(r.owner_user_id), creator_id: r.creator_id ? userMap.get(r.creator_id) ?? (known.has(r.creator_id) ? r.creator_id : null) : null, updated_by: null, cover_photo_id: r.cover_photo_id ? newId(r.cover_photo_id) : null }));
   const itemIds = new Set(items.map((i) => i.id));
   const child = (rows, extra = (x) => x) => (rows || []).map((r) => extra({ ...strip(r), id: newId(r.id), workspace_id: workspaceId, item_id: r.item_id ? newId(r.item_id) : null })).filter((r) => !r.item_id || itemIds.has(r.item_id));
 
@@ -95,12 +96,12 @@ export function buildCsv({ items, votes, members, meId, partnerId }) {
   const name = (id) => (id ? members.find((m) => m.id === id)?.display_name ?? 'Unknown' : 'Both');
   const g = groupByItem(votes);
   const meName = name(meId), partnerName = partnerId ? name(partnerId) : 'Partner';
-  const head = ['Title', 'Category', 'Priority', 'Status', 'Owner', 'Added by', 'Timeframe', 'Start date', 'End date', 'Location',
+  const head = ['Title', 'Category', 'Priority', 'Status', 'Owner', 'Created by', 'Added by', 'Timeframe', 'Start date', 'End date', 'Location',
     'Estimated cost', 'Actual cost', 'Currency', 'Saved', 'Savings target', `${meName} vote`, `${partnerName} vote`, 'Mutual score', 'Both want it',
     'Tags', 'Completed on', 'Would do again', 'Description', 'Journal note'];
   const rows = items.map((i) => {
     const v = voteSummary(g.get(i.id) || [], meId, partnerId);
-    return [i.title, i.category, i.priority, i.status, name(i.owner_user_id), i.added_by_both ? 'Both' : name(i.created_by), i.timeframe, i.start_date, i.end_date, i.location_name,
+    return [i.title, i.category, i.priority, i.status, name(i.owner_user_id), i.creator_id ? name(i.creator_id) : '', i.added_by_both ? 'Both' : name(i.created_by), i.timeframe, i.start_date, i.end_date, i.location_name,
       i.est_cost, i.actual_cost, i.currency, i.savings_saved, i.savings_target, v.mine, v.theirs, v.score, v.mutual ? 'yes' : 'no',
       i.tags, i.completed_at, i.would_do_again, i.description, i.completion_note];
   });

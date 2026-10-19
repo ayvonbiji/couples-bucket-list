@@ -12,7 +12,7 @@ export const DEFAULTS = {
     added_by_both: false, description: null, category: 'General', category_id: null, subcategory: null, notes: null, priority: 'Medium', status: 'Idea',
     time_required: null, satisfaction: null, favourite_memory: null, reflection: null, legacy_category: null,
     timeframe: null, start_date: null, end_date: null, location_name: null, lat: null, lng: null,
-    est_cost: null, currency: 'INR', owner_user_id: null, tags: [], cover_photo_id: null,
+    est_cost: null, currency: 'INR', owner_user_id: null, tags: [], cover_photo_id: null, creator_id: null, updated_by: null,
     is_surprise: false, reveal_date: null, revealed_at: null, savings_target: null, savings_saved: 0,
     reminder_at: null, reminder_done: false, completed_at: null, completion_note: null,
     would_do_again: null, actual_cost: null, is_deleted: false, deleted_at: null,

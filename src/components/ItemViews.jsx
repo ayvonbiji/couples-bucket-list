@@ -17,12 +17,15 @@ export function StatusText({ status, className }) {
 export const StatusPill = StatusText;
 export { CategoryDot };
 
-/** Small "Added by Ayvon" line. The creator is recorded once, when the item is first added. */
-export function AddedBy({ item, className }) {
+/**
+ * Small "Created by Ayvon" line: who originally created or suggested the dream, chosen in the form.
+ * Older items without a creator show nothing until one is picked when editing.
+ */
+export function CreatedBy({ item, className }) {
   const { personName } = useApp();
-  const name = personName(item.created_by);
+  const name = item.creator_id ? personName(item.creator_id) : null;
   if (!name) return null;
-  return <p className={cn('muted truncate text-[11px] leading-tight', className)}>Added by {name}</p>;
+  return <p className={cn('muted truncate text-[11px] leading-tight', className)}>Created by {name}</p>;
 }
 
 /** One secondary detail: upcoming date beats place beats timeframe. */
@@ -124,7 +127,7 @@ export function ItemRow({ item, selectMode, selected, onToggleSelect, onLongPres
             <StatusText status={item.status} />
             {sub && <><span className="text-ink-500/50" aria-hidden>·</span><span className="muted truncate text-[13px]">{sub}</span></>}
           </div>
-          <AddedBy item={item} className="mt-0.5" />
+          <CreatedBy item={item} className="mt-0.5" />
         </div>
         {!selectMode && onMore && (
           <button type="button" className="icon-btn -mr-2 h-9 w-9 shrink-0 text-ink-500" onClick={(e) => { e.stopPropagation(); onMore(item); }} onTouchStart={(e) => e.stopPropagation()} aria-label={`Actions for ${item.title}`}>
@@ -159,7 +162,7 @@ export function ItemCard({ item, compact }) {
           <CategoryDot category={item.category} label={false} />
           <StatusText status={item.status} />
         </div>
-        {!compact && <AddedBy item={item} className="mt-0.5" />}
+        {!compact && <CreatedBy item={item} className="mt-0.5" />}
       </div>
     </Link>
   );

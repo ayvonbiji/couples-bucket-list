@@ -153,8 +153,9 @@ export function applyFilters(items, f, meId) {
     if (f.minScore && (i._votes?.score ?? 0) < f.minScore) return false;
     if (f.maxCost !== '' && f.maxCost !== null && f.maxCost !== undefined && Number(i.est_cost || 0) > Number(f.maxCost)) return false;
     if (f.minCost && Number(i.est_cost || 0) < Number(f.minCost)) return false;
-    if (f.createdBy === 'me' && i.created_by !== meId) return false;
-    if (f.createdBy === 'partner' && i.created_by === meId) return false;
+    // "Created by" = the creator chosen on the item (creator_id), not who typed it in.
+    if (f.createdBy === 'me' && i.creator_id !== meId) return false;
+    if (f.createdBy === 'partner' && (!i.creator_id || i.creator_id === meId)) return false;
     if (f.createdBy === 'both' && !i.added_by_both) return false;
     if (f.timeRequired?.length && !f.timeRequired.includes(i.time_required)) return false;
     if (f.targetFrom && (!i.start_date || i.start_date < f.targetFrom)) return false;

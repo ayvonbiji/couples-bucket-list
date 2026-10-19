@@ -107,6 +107,8 @@ test('validation', () => {
   assert.ok(validateItem({ title: '', category: 'Food', priority: 'Low', status: 'Idea' }).title);
   assert.deepEqual(validateItem({ title: 'Ok', category: 'Food', priority: 'Low', status: 'Idea', est_cost: '10' }), {});
   assert.ok(validateItem({ title: 'Ok', category: 'Food', priority: 'Low', status: 'Idea', start_date: '2026-05-02', end_date: '2026-05-01' }).end_date);
+  assert.ok(validateItem({ title: 'Ok', category: 'Food', priority: 'Low', status: 'Idea' }, { requireCreator: true }).creator_id);
+  assert.deepEqual(validateItem({ title: 'Ok', category: 'Food', priority: 'Low', status: 'Idea', creator_id: A }, { requireCreator: true }), {});
   assert.ok(validateGift({ name: 'x', is_hidden: true }).reveal_date);
   assert.ok(validateGift({ name: 'x', url: 'ftp://nope' }).url);
 });

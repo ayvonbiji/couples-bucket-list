@@ -10,6 +10,7 @@ import { STATUSES, STATUS_META, categoryColor } from '../lib/constants.js';
 import { countdownLabel, fmtDate, fmtMoney, timeAgo } from '../lib/utils.js';
 import { Avatar, Disclosure, EmptyState, ProgressBar, StoredImage } from '../components/ui.jsx';
 import { ItemCard } from '../components/ItemViews.jsx';
+import LocalDreams from '../components/LocalDreams.jsx';
 import { CategoryPlaceholder, DateKindIcon } from '../components/icons.jsx';
 
 export default function DashboardPage() {
@@ -53,6 +54,8 @@ export default function DashboardPage() {
           <ChevronRight size={16} className="text-ink-500" />
         </Link>
       )}
+
+      <LocalDreams />
 
       {/* Progress + summary */}
       <section className="list-group">

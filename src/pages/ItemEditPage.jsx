@@ -18,14 +18,14 @@ export default function ItemEditPage() {
   const { id } = useParams();
   const { search } = useLocation();
   const nav = useNavigate();
-  const { data, partner, workspace, categories, createItem, updateItem } = useApp();
+  const { data, partner, people, workspace, categories, createItem, updateItem } = useApp();
   const existing = id ? data.items.find((i) => i.id === id) : null;
   const preset = useMemo(() => Object.fromEntries(new URLSearchParams(search)), [search]);
 
   const [v, setV] = useState(() => existing ? { ...existing, reminder_at: toLocalInput(existing.reminder_at) } : {
     title: '', description: '', category: preset.category || categories[0]?.name || 'General', subcategory: '', notes: '', time_required: '', actual_cost: '', priority: 'Medium',
     status: preset.date ? 'Planned' : 'Idea', timeframe: '', start_date: preset.date || '', end_date: '',
-    location_name: '', lat: null, lng: null, est_cost: '', currency: workspace.currency, owner_user_id: null,
+    location_name: '', lat: null, lng: null, est_cost: '', currency: workspace.currency, owner_user_id: null, creator_id: null, // chosen explicitly
     added_by_both: false, tags: [], is_surprise: false, reveal_date: '', savings_target: '', savings_saved: '',
     reminder_at: '',
   });
@@ -50,7 +50,7 @@ export default function ItemEditPage() {
 
   async function save(e) {
     e.preventDefault();
-    const errs = validateItem(v);
+    const errs = validateItem(v, { requireCreator: !existing });
     setErrors(errs);
     if (Object.keys(errs).length) {
       // Open any collapsed section containing an error, then scroll to it.
@@ -68,6 +68,7 @@ export default function ItemEditPage() {
       timeframe: v.timeframe?.trim() || null, start_date: v.start_date || null, end_date: v.end_date || null,
       location_name: v.location_name?.trim() || null, lat: v.lat ?? null, lng: v.lng ?? null,
       est_cost: toNum(v.est_cost), currency: v.currency, owner_user_id: v.owner_user_id || null, added_by_both: v.added_by_both,
+      creator_id: v.creator_id || null,
       tags: v.tags, is_surprise: v.is_surprise, reveal_date: v.is_surprise ? v.reveal_date || null : null,
       savings_target: toNum(v.savings_target), savings_saved: toNum(v.savings_saved) ?? 0,
       reminder_at: v.reminder_at ? new Date(v.reminder_at).toISOString() : null,
@@ -96,6 +97,13 @@ export default function ItemEditPage() {
               autoFocus={!existing} maxLength={140} placeholder="What do you dream of doing?" value={v.title} onChange={(e) => set({ title: e.target.value })} aria-invalid={!!errors.title} aria-label="Title" />
           </Field>
           <textarea className="input min-h-[72px] resize-none" maxLength={5000} placeholder="Short description" value={v.description || ''} onChange={(e) => set({ description: e.target.value })} aria-label="Description" />
+
+          <div>
+            <span className="label">Created by{existing && !existing.creator_id ? <span className="muted font-normal"> · not set yet</span> : null}</span>
+            <SegmentedControl value={v.creator_id || ''} onChange={(creator_id) => { set({ creator_id }); setErrors((x) => ({ ...x, creator_id: undefined })); }}
+              options={people.map((p) => ({ value: p.id, label: p.display_name }))} />
+            {errors.creator_id && <p className="err" role="alert">{errors.creator_id}</p>}
+          </div>
 
           <div>
             <span className="label">Category</span>

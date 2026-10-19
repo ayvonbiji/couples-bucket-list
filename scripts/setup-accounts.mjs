@@ -37,8 +37,9 @@ if (!url || !serviceKey) {
   process.exit(1);
 }
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-const ask = (q) => new Promise((res) => rl.question(q, (a) => res(a.trim())));
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: Boolean(process.stdin.isTTY) });
+const lines = rl[Symbol.asyncIterator](); // one answer per line (works typed or piped)
+const ask = async (q) => { process.stdout.write(q); const { value } = await lines.next(); return (value ?? '').trim(); };
 async function promptAccount(n) {
   console.log(`\nAccount ${n}`);
   let username;

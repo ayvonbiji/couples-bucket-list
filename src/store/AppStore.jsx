@@ -2,8 +2,8 @@
 // Components read from `useApp()` and call actions; actions talk to the backend
 // and patch local state immediately, then realtime reloads reconcile with the server.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { getBackend } from '../data/backend.js';
-import { DATA_TABLES, DEFAULTS } from '../data/tables.js';
+import { getBackend, isBackendAvailable } from '../data/backend.js';
+import { DATA_TABLES, DEFAULTS, LEGACY_CATEGORY, LEGACY_PRIORITY } from '../data/tables.js';
 import { filterForViewer } from '../lib/visibility.js';
 import { seedDates, seedItems } from '../lib/seed.js';
 import { compressImage } from '../lib/image.js';
@@ -53,6 +53,7 @@ export function AppProvider({ children }) {
   // ---------------- boot ----------------
   useEffect(() => {
     let unsub;
+    if (!isBackendAvailable) { setUser(null); setLoading(false); return undefined; } // App shows "Database not connected"
     getBackend().then(async (b) => {
       // No login screen. A personal link (#key=…) signs this device in once; the key is
       // remembered so the device can sign itself in again if its session ever expires.
@@ -91,6 +92,9 @@ export function AppProvider({ children }) {
   const ws = membership?.workspace;
   const me = useMemo(() => membership?.members.find((m) => m.id === user?.id) || (user ? { id: user.id, email: user.email, display_name: 'Me' } : null), [membership, user]);
   const partner = useMemo(() => membership?.members.find((m) => m.id !== user?.id) || null, [membership, user]);
+  /** Both partners in a stable order (whoever started the list first) — used by the "Created by" choice. */
+  const people = useMemo(() => [...(membership?.members || [])].sort((a, b) =>
+    (b.id === membership?.workspace?.created_by) - (a.id === membership?.workspace?.created_by) || (a.display_name || '').localeCompare(b.display_name || '')), [membership]);
 
   const reload = useCallback(async () => {
     if (!backend || !ws) return;
@@ -108,7 +112,8 @@ export function AppProvider({ children }) {
     (async () => {
       setLoading(true);
       let data = await backend.loadAll(ws.id);
-      const needsSeed = ws._needsSeed || (backend.mode === 'supabase' && !localStorage.getItem(`cbl:seeded:${ws.id}`) && data.items.length === 0 && ws.created_by === user.id);
+      // Sample dreams are for Demo Mode only — the shared database starts with your real list.
+      const needsSeed = backend.mode === 'local' && ws._needsSeed;
       if (needsSeed) {
         await seedWorkspace(backend, ws, user.id, membership.members.find((m) => m.id !== user.id)?.id);
         backend.markSeeded?.(ws.id);
@@ -124,6 +129,24 @@ export function AppProvider({ children }) {
     });
     return () => { cancelled = true; unsub?.(); };
   }, [backend, ws?.id, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Catch-up refresh. Realtime pushes changes instantly, but a phone that was asleep, offline or
+  // backgrounded can miss events — so also reload from the database whenever the app comes back
+  // into view or online, and every 20 seconds while it is open.
+  useEffect(() => {
+    if (!backend || !ws || !dataLoaded) return undefined;
+    const refresh = () => { if (document.visibilityState === 'visible') reload(); };
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    const timer = setInterval(refresh, 20000);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+      clearInterval(timer);
+    };
+  }, [backend, ws, dataLoaded, reload]);
 
   // Privacy filtering for the current viewer (surprises, hidden gifts).
   const data = useMemo(() => (me ? filterForViewer(raw, me.id) : raw), [raw, me]);
@@ -229,16 +252,38 @@ export function AppProvider({ children }) {
       }, 'Added to your list'),
 
       updateItem: (id, patch, msg) => run(async () => {
-        const r = await update('items', id, withCategory(patch));
+        const r = await update('items', id, withCategory({ ...patch, updated_by: me.id })); // the database also records this itself
         if (r?.status === 'Completed') await syncJournalForItem({ ...raw.items.find((i) => i.id === id), ...r });
         return r;
       }, msg),
+
+      /**
+       * Copy dreams that were saved only in this browser (old Demo Mode) into the shared list.
+       * People from the old browser-only data don't map to real accounts, so "Created by" is left
+       * empty to be chosen later — never guessed.
+       */
+      importLocalDreams: (rows) => run(async () => {
+        const skip = new Set(['id', 'workspace_id', 'created_by', 'creator_id', 'updated_by', 'owner_user_id', 'cover_photo_id', 'is_deleted', 'deleted_at', 'created_at', 'updated_at', 'legacy_category']);
+        const cols = ['title', ...Object.keys(DEFAULTS.items), 'completed_at', 'actual_cost', 'savings_saved', 'reveal_date', 'reminder_at', 'reminder_done', 'would_do_again']
+          .filter((k) => !skip.has(k));
+        for (const src of rows) {
+          const row = Object.fromEntries(cols.filter((k) => src[k] !== undefined).map((k) => [k, src[k]]));
+          // Older browser data may still use the previous priority/category names.
+          if (LEGACY_PRIORITY[row.priority]) row.priority = LEGACY_PRIORITY[row.priority];
+          const catName = LEGACY_CATEGORY[row.category] || row.category;
+          row.category = raw.categories.some((c) => c.kind === 'bucket' && c.name === catName) ? catName : 'General';
+          const item = await insert('items', withCategory({ ...row, category_id: null, created_by: me.id, creator_id: null }));
+          for (const [k, st] of (src._subtasks || []).entries()) await insert('subtasks', { item_id: item.id, title: st.title, done: Boolean(st.done), position: k, due_date: st.due_date ?? null });
+          if (item.status === 'Completed') await syncJournalForItem(item);
+        }
+        return true;
+      }, `Added to your shared list`),
 
       /** Copy an item as a fresh idea (checklist copied unticked; no photos, votes or completion). */
       duplicateItem: (id) => run(async () => {
         const src = raw.items.find((i) => i.id === id);
         const keep = ['title', 'description', 'category', 'category_id', 'subcategory', 'notes', 'priority', 'timeframe', 'location_name', 'lat', 'lng',
-          'est_cost', 'currency', 'owner_user_id', 'tags', 'savings_target', 'time_required'];
+          'est_cost', 'currency', 'owner_user_id', 'tags', 'savings_target', 'time_required', 'creator_id'];
         const copy = Object.fromEntries(keep.map((k) => [k, src[k]]));
         const item = await insert('items', { ...copy, title: `${src.title} (copy)`.slice(0, 140), status: 'Idea', created_by: me.id });
         const subs = raw.subtasks.filter((x) => x.item_id === id).sort((a, b) => a.position - b.position);
@@ -385,7 +430,7 @@ export function AppProvider({ children }) {
 
       // ---------- backups ----------
       /** Upload a JSON snapshot to cloud storage and record it in `backups`. */
-      backupNow: (kind = 'manual') => run(async () => {
+      backupNow: (kind = 'manual') => (kind === 'auto' ? (fn) => fn().catch((e) => console.warn('Automatic backup skipped:', e)) : (fn) => run(fn, 'Backed up to the cloud'))(async () => {
         const { buildJsonBackup } = await import('../lib/export.js');
         const blob = buildJsonBackup({ workspace: ws, members: membership.members, data: raw });
         const path = `${ws.id}/backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
@@ -393,7 +438,7 @@ export function AppProvider({ children }) {
         await insert('backups', { created_by: me.id, kind, format: 'json', storage_path: path, size_bytes: blob.size, item_count: raw.items.length });
         const w = await backend.updateWorkspace(ws.id, { last_backup_at: new Date().toISOString() });
         setMembership((m) => ({ ...m, workspace: { ...m.workspace, ...w } }));
-      }, kind === 'auto' ? null : 'Backed up to the cloud'),
+      }), // the weekly automatic backup runs quietly; a manual one reports success or the error
 
       downloadBackup: (b) => run(async () => {
         const blob = await backend.downloadFile('backups', b.storage_path);
@@ -474,7 +519,7 @@ export function AppProvider({ children }) {
     backend, mode: backend?.mode, user, me, partner, workspace: ws, membership,
     data, items, trash, categories, fantasyCategories, 
     loading: loading || user === undefined || (user && membership === undefined),
-    toasts, toast, dismissToast, reminders, personLabel, personName,
+    toasts, toast, dismissToast, reminders, personLabel, personName, people,
     setMembership,
     ...actions,
   };
@@ -484,7 +529,7 @@ export function AppProvider({ children }) {
 /** Insert the 5 sample items, their subtasks, a vote or two and important dates. */
 async function seedWorkspace(backend, ws, meId, partnerId) {
   const base = { workspace_id: ws.id };
-  const items = seedItems(meId, ws.currency);
+  const items = seedItems(meId, ws.currency, partnerId);
   const { categories = [] } = await backend.loadAll(ws.id);
   const catId = (name) => categories.find((c) => c.kind === 'bucket' && c.name === name)?.id ?? null;
   for (const [k, raw] of items.entries()) {

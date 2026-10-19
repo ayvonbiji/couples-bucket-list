@@ -5,9 +5,13 @@ import { PRIORITIES, STATUSES } from './constants.js';
 const isUrl = (s) => /^https?:\/\/\S+$/i.test(s);
 const num = (v) => v === '' || v === null || v === undefined || (!Number.isNaN(Number(v)) && Number(v) >= 0);
 
-/** Returns { field: message } — empty object means valid. */
-export function validateItem(v) {
+/**
+ * Returns { field: message } — empty object means valid.
+ * `requireCreator`: new items must say explicitly who created the dream (Ayvon or Aksa).
+ */
+export function validateItem(v, { requireCreator = false } = {}) {
   const e = {};
+  if (requireCreator && !v.creator_id) e.creator_id = 'Choose who created this dream';
   if (!v.title || !v.title.trim()) e.title = 'Give it a name';
   else if (v.title.length > 140) e.title = 'Keep the title under 140 characters';
   if (!v.category && !v.category_id) e.category = 'Pick a category';

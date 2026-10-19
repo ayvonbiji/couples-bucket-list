@@ -20,11 +20,11 @@ export default function MemoriesPage() {
 
   const allDone = useMemo(() => sortBy(all.filter((i) => i.status === 'Completed'), (i) => i.completed_at || '', -1), [all]);
   const years = [...new Set(allDone.map((i) => (i.completed_at || '').slice(0, 4)).filter(Boolean))].sort().reverse();
-  // Partner filter: who added the dream (one shared list — no separate sides).
+  // Partner filter: who created the dream (one shared list — no separate sides).
   const done = useMemo(() => allDone.filter((i) =>
     (year === 'all' || (i.completed_at || '').startsWith(year)) &&
     (cat === 'all' || i.category === cat) &&
-    (person === 'any' || i.created_by === (person === 'me' ? me.id : partner?.id))), [allDone, year, cat, person, me.id, partner?.id]);
+    (person === 'any' || i.creator_id === (person === 'me' ? me.id : partner?.id))), [allDone, year, cat, person, me.id, partner?.id]);
   const photos = useMemo(() => {
     const ids = new Set(done.map((i) => i.id));
     const manual = new Set(data.journal_entries.filter((j) => !j.item_id).map((j) => j.id));
@@ -46,7 +46,7 @@ export default function MemoriesPage() {
               <option value="all">All categories</option>{categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
             <select className="input py-2 text-[14px]" value={person} onChange={(e) => setPerson(e.target.value)} aria-label="Partner">
-              <option value="any">Both of us</option><option value="me">Added by {me.display_name || 'me'}</option>{partner && <option value="partner">Added by {partner.display_name}</option>}
+              <option value="any">Both of us</option><option value="me">Created by {me.display_name || 'me'}</option>{partner && <option value="partner">Created by {partner.display_name}</option>}
             </select>
           </div>
         )}

@@ -4,7 +4,7 @@ import { addDays, format, subDays, subMonths } from 'date-fns';
 
 const d = (n) => format(addDays(new Date(), n), 'yyyy-MM-dd');
 
-export function seedItems(meId, currency = 'INR') {
+export function seedItems(meId, currency = 'INR', partnerId = null) {
   return [
     {
       title: 'Houseboat night in Alleppey backwaters',
@@ -47,7 +47,7 @@ export function seedItems(meId, currency = 'INR') {
       location_name: 'Varkala, Kerala', lat: 8.7379, lng: 76.7163,
       est_cost: 1500, currency, tags: ['sunrise', 'kerala'],
     },
-  ].map((i) => ({ ...i, created_by: meId }));
+  ].map((i, k) => ({ ...i, created_by: meId, creator_id: k % 2 && partnerId ? partnerId : meId })); // Demo Mode samples only
 }
 
 export function seedDates(meId) {

@@ -9,7 +9,7 @@ export function createSupabaseBackend(url, anonKey) {
 
   /** Throw a readable Error if Supabase returned one. */
   const check = ({ data, error }) => {
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(error.message || (error.statusCode ? `Request failed (${error.statusCode})` : 'Something went wrong — please try again'));
     return data;
   };
   const applyMatch = (q, match) => Object.entries(match).reduce((qq, [k, v]) => qq.eq(k, v), q);
